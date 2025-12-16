@@ -1,0 +1,320 @@
+/* Main Container */
+.login-container {
+  display: flex;
+  width: 100%;
+  height: 100vh;
+  background: #f5f5f5;
+}
+
+/* ======================== */
+/* Bagian Kiri - Form Login */
+/* ======================== */
+.login-form-section {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 20px;
+  background: #ffffff;
+}
+
+.login-form-wrapper {
+  width: 100%;
+  max-width: 400px;
+}
+
+/* Logo */
+.login-logo {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.logo-placeholder {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 28px;
+  font-weight: bold;
+  color: white;
+  margin: 0 auto;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+/* Title dan Subtitle */
+.login-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0 0 8px 0;
+  text-align: left;
+}
+
+.login-subtitle {
+  font-size: 14px;
+  color: #666;
+  text-align: left;
+  margin-bottom: 30px;
+}
+
+/* Form */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Form Group */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  text-align: left;
+}
+
+/* Input Field */
+.form-input {
+  padding: 12px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  font-family: inherit;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-input::placeholder {
+  color: #999;
+}
+
+/* Error Message */
+.error-message {
+  background-color: #fee;
+  border: 1px solid #fcc;
+  color: #c33;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+/* Login Button */
+.login-button {
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.login-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+}
+
+.login-button:active {
+  transform: translateY(0);
+}
+
+/* Footer Text */
+.login-footer {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 14px;
+  color: #666;
+}
+
+.login-footer a {
+  color: #667eea;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.3s ease;
+}
+
+.login-footer a:hover {
+  color: #764ba2;
+  text-decoration: underline;
+}
+
+/* ======================== */
+/* Bagian Kanan - Image    */
+/* ======================== */
+.login-image-section {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.login-image-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  max-width: 600px;
+  max-height: 700px;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.login-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Image Overlay */
+.image-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+  padding: 40px 30px;
+  color: white;
+  text-align: center;
+}
+
+.image-overlay h2 {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 0 0 10px 0;
+}
+
+.image-overlay p {
+  font-size: 14px;
+  margin: 0;
+  opacity: 0.9;
+}
+
+/* ======================== */
+/* Responsive Design       */
+/* ======================== */
+@media (max-width: 1024px) {
+  .login-form-wrapper {
+    max-width: 350px;
+  }
+
+  .login-title {
+    font-size: 28px;
+  }
+
+  .image-overlay h2 {
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 768px) {
+  .login-container {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .login-form-section {
+    height: auto;
+    padding: 60px 20px;
+    min-height: 100vh;
+  }
+
+  .login-image-section {
+    height: 400px;
+    padding: 20px;
+  }
+
+  .login-image-wrapper {
+    max-height: 350px;
+  }
+
+  .logo-placeholder {
+    width: 50px;
+    height: 50px;
+    font-size: 24px;
+  }
+
+  .login-title {
+    font-size: 24px;
+  }
+
+  .image-overlay {
+    padding: 30px 20px;
+  }
+
+  .image-overlay h2 {
+    font-size: 20px;
+  }
+
+  .image-overlay p {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-form-section {
+    padding: 40px 16px;
+  }
+
+  .login-form-wrapper {
+    max-width: 100%;
+  }
+
+  .login-logo {
+    margin-bottom: 30px;
+  }
+
+  .logo-placeholder {
+    width: 45px;
+    height: 45px;
+    font-size: 20px;
+  }
+
+  .login-title {
+    font-size: 20px;
+  }
+
+  .login-subtitle {
+    font-size: 12px;
+  }
+
+  .form-input {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .login-button {
+    padding: 11px 12px;
+    font-size: 14px;
+  }
+
+  .login-image-section {
+    height: 300px;
+    padding: 16px;
+  }
+
+  .login-image-wrapper {
+    max-height: 250px;
+  }
+}
