@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import '../styles/Sidebar.css';
 
-const Sidebar = ({ activeMenu, onMenuChange }) => {
+const Sidebar = ({ activeMenu, onMenuChange, onLogout }) => {
   const menuItems = [
     { id: 'home', label: 'Home', icon: '🏠' },
     { id: 'menu', label: 'Menu', icon: '📋' },
@@ -40,7 +40,7 @@ const Sidebar = ({ activeMenu, onMenuChange }) => {
 
       {/* Logout Button */}
       <div className="sidebar-footer">
-        <button className="logout-btn">
+        <button className="logout-btn" onClick={onLogout}>
           <span className="nav-icon">🚪</span>
           <span className="nav-label">Logout</span>
         </button>
