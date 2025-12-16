@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import '../styles/Login.css';
 
-const LoginPage = () => {
+const LoginPage = ({ onLoginSuccess }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -20,7 +20,9 @@ const LoginPage = () => {
     
     // Simulasi login
     console.log('Login dengan:', { username, password });
-    alert(`Selamat datang, ${username}!`);
+    
+    // Panggil callback untuk login success
+    onLoginSuccess();
     
     // Reset form
     setUsername('');
