@@ -144,11 +144,11 @@ const HomePage = ({ onLogout }) => {
       filtered = filtered.filter(t => t.paymentMethod === historyFilterMethod);
     }
 
-    // Sort berdasarkan tanggal
+    // Sort berdasarkan tanggal menggunakan timestamp untuk akurasi
     if (historySortBy === 'newest') {
-      filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+      filtered.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
     } else if (historySortBy === 'oldest') {
-      filtered.sort((a, b) => new Date(a.date) - new Date(b.date));
+      filtered.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
     }
 
     return filtered;
