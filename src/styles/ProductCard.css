@@ -23,6 +23,12 @@
   box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2), 0 8px 16px rgba(0, 0, 0, 0.15);
 }
 
+/* Out of Stock State */
+.product-card.out-of-stock {
+  opacity: 0.7;
+  background-color: #f5f5f5;
+}
+
 /* Selected Tag */
 .selected-tag {
   position: absolute;
@@ -38,6 +44,36 @@
   box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+/* Stock Badge */
+.stock-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  z-index: 9;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.stock-badge.available {
+  background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+  color: white;
+}
+
+.stock-badge.low {
+  background: linear-gradient(135deg, #facc15 0%, #eab308 100%);
+  color: #1a1a1a;
+}
+
+.stock-badge.empty {
+  background: linear-gradient(135deg, #a0aec0 0%, #718096 100%);
+  color: white;
 }
 
 /* Product Image */
@@ -58,6 +94,15 @@
 
 .product-card:hover .product-image img {
   transform: scale(1.05);
+}
+
+.product-image.disabled {
+  background: #e5e5e5;
+  filter: grayscale(100%) brightness(0.85);
+}
+
+.product-image.disabled img {
+  opacity: 0.6;
 }
 
 .product-category {
@@ -125,13 +170,19 @@
   letter-spacing: 0.5px;
 }
 
-.add-to-cart-btn:hover {
+.add-to-cart-btn:hover:not(:disabled) {
   transform: scale(1.02);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
-.add-to-cart-btn:active {
+.add-to-cart-btn:active:not(:disabled) {
   transform: scale(0.98);
+}
+
+.add-to-cart-btn:disabled {
+  background: linear-gradient(135deg, #a0aec0 0%, #718096 100%);
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 /* Quantity Control */
@@ -158,12 +209,18 @@
   flex: 0 0 auto;
 }
 
-.qty-btn-small:hover {
+.qty-btn-small:hover:not(:disabled) {
   background: #f0f0f0;
 }
 
-.qty-btn-small:active {
+.qty-btn-small:active:not(:disabled) {
   background: #e0e0e0;
+}
+
+.qty-btn-small:disabled {
+  color: #a0aec0;
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .qty-display {

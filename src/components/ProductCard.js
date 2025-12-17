@@ -4,6 +4,8 @@ import '../styles/ProductCard.css';
 const ProductCard = ({ product, onAddToCart, onUpdateQuantity, cartItems }) => {
   const cartItem = cartItems.find(item => item.id === product.id);
   const isSelected = cartItem ? true : false;
+  const isOutOfStock = product.stock <= 0;
+  const isLowStock = product.stock > 0 && product.stock <= 5;
 
   const handleAddClick = () => {
     onAddToCart(product);
@@ -19,11 +21,16 @@ const ProductCard = ({ product, onAddToCart, onUpdateQuantity, cartItems }) => {
   };
 
   return (
-    <div className={`product-card ${isSelected ? 'selected' : ''}`}>
+    <div className={`product-card ${isSelected ? 'selected' : ''} ${isOutOfStock ? 'out-of-stock' : ''}`}>
       {/* Selected Tag */}
       {isSelected && <div className="selected-tag">Terpilih</div>}
 
-      <div className="product-image">
+      {/* Stock Badge */}
+      <div className={`stock-badge ${isOutOfStock ? 'empty' : isLowStock ? 'low' : 'available'}`}>
+        {isOutOfStock ? 'Habis' : `Stok: ${product.stock}`}
+      </div>
+
+      <div className={`product-image ${isOutOfStock ? 'disabled' : ''}`}>
         <img src={product.image} alt={product.name} />
       </div>
       
@@ -37,8 +44,9 @@ const ProductCard = ({ product, onAddToCart, onUpdateQuantity, cartItems }) => {
         <div className="product-footer">
           {!isSelected ? (
             <button
-              className="add-to-cart-btn"
+              className={`add-to-cart-btn ${isOutOfStock ? 'disabled' : ''}`}
               onClick={handleAddClick}
+              disabled={isOutOfStock}
             >
               + Add to Cart
             </button>
@@ -54,6 +62,7 @@ const ProductCard = ({ product, onAddToCart, onUpdateQuantity, cartItems }) => {
               <button
                 className="qty-btn-small"
                 onClick={() => handleQuantityChange(cartItem.quantity + 1)}
+                disabled={cartItem.quantity >= product.stock}
               >
                 +
               </button>

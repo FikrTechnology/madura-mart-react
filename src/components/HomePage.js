@@ -44,63 +44,71 @@ const HomePage = ({ onLogout }) => {
     'Lain-lain'
   ];
 
-  // Sample data produk
+  // Sample data produk dengan stok
   const [products] = useState([
     {
       id: 1,
       name: 'Beras Premium 5kg',
       price: 75000,
       category: 'Kebutuhan Dapur',
-      image: 'https://images.unsplash.com/photo-1586857529235-ea4a90b1e595?w=300&h=300&fit=crop'
+      image: 'https://images.unsplash.com/photo-1586857529235-ea4a90b1e595?w=300&h=300&fit=crop',
+      stock: 25
     },
     {
       id: 2,
       name: 'Minyak Goreng 2L',
       price: 28000,
       category: 'Kebutuhan Dapur',
-      image: 'https://images.unsplash.com/photo-1587291352341-ccb540eae75f?w=300&h=300&fit=crop'
+      image: 'https://images.unsplash.com/photo-1587291352341-ccb540eae75f?w=300&h=300&fit=crop',
+      stock: 0
     },
     {
       id: 3,
       name: 'Gula Putih 1kg',
       price: 12000,
       category: 'Kebutuhan Dapur',
-      image: 'https://images.unsplash.com/photo-1599599810694-b308981df39e?w=300&h=300&fit=crop'
+      image: 'https://images.unsplash.com/photo-1599599810694-b308981df39e?w=300&h=300&fit=crop',
+      stock: 5
     },
     {
       id: 4,
       name: 'Telur Ayam 1 Kg',
       price: 32000,
       category: 'Makanan',
-      image: 'https://images.unsplash.com/photo-1582722921519-94d3dba35522?w=300&h=300&fit=crop'
+      image: 'https://images.unsplash.com/photo-1582722921519-94d3dba35522?w=300&h=300&fit=crop',
+      stock: 15
     },
     {
       id: 5,
       name: 'Susu UHT 1L',
       price: 15000,
       category: 'Minuman',
-      image: 'https://images.unsplash.com/photo-1553531088-89dbbf58d9d1?w=300&h=300&fit=crop'
+      image: 'https://images.unsplash.com/photo-1553531088-89dbbf58d9d1?w=300&h=300&fit=crop',
+      stock: 0
     },
     {
       id: 6,
       name: 'Tepung Terigu 1kg',
       price: 10000,
       category: 'Kebutuhan Dapur',
-      image: 'https://images.unsplash.com/photo-1585707372641-92b5e5e36cce?w=300&h=300&fit=crop'
+      image: 'https://images.unsplash.com/photo-1585707372641-92b5e5e36cce?w=300&h=300&fit=crop',
+      stock: 32
     },
     {
       id: 7,
       name: 'Garam Dapur 500g',
       price: 5000,
       category: 'Kebutuhan Dapur',
-      image: 'https://images.unsplash.com/photo-1599599810771-f2b6b6c9f0f5?w=300&h=300&fit=crop'
+      image: 'https://images.unsplash.com/photo-1599599810771-f2b6b6c9f0f5?w=300&h=300&fit=crop',
+      stock: 50
     },
     {
       id: 8,
       name: 'Kopi Arabika 500g',
       price: 85000,
       category: 'Minuman',
-      image: 'https://images.unsplash.com/photo-1559056199-641a0ac8b3f4?w=300&h=300&fit=crop'
+      image: 'https://images.unsplash.com/photo-1559056199-641a0ac8b3f4?w=300&h=300&fit=crop',
+      stock: 8
     }
   ]);
 
@@ -172,9 +180,20 @@ const HomePage = ({ onLogout }) => {
   };
 
   const handleAddToCart = (product) => {
+    // Cek apakah stok tersedia
+    if (product.stock <= 0) {
+      alert('Maaf, produk ini sedang habis.');
+      return;
+    }
+
     const existingItem = cartItems.find(item => item.id === product.id);
     
     if (existingItem) {
+      // Cek apakah menambah qty melebihi stok
+      if (existingItem.quantity >= product.stock) {
+        alert(`Stok ${product.name} hanya tersedia ${product.stock} pcs.`);
+        return;
+      }
       setCartItems(cartItems.map(item =>
         item.id === product.id
           ? { ...item, quantity: item.quantity + 1 }
@@ -190,6 +209,14 @@ const HomePage = ({ onLogout }) => {
   };
 
   const handleUpdateQuantity = (productId, quantity) => {
+    const product = products.find(p => p.id === productId);
+    
+    // Validasi qty tidak melebihi stok
+    if (quantity > product.stock) {
+      alert(`Stok ${product.name} hanya tersedia ${product.stock} pcs.`);
+      return;
+    }
+    
     if (quantity <= 0) {
       handleRemoveFromCart(productId);
     } else {
