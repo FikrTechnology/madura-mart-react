@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import '../styles/Home.css';
 import Sidebar from './Sidebar';
 import ProductCard from './ProductCard';
@@ -26,6 +26,10 @@ const HomePage = ({ onLogout }) => {
   
   // Home & Report states
   const [reportTimePeriod, setReportTimePeriod] = useState('all');
+  
+  // Dynamic time states
+  const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+  const [currentDate, setCurrentDate] = useState(new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
 
   // Kategori yang tersedia
   const categories = [
@@ -97,6 +101,17 @@ const HomePage = ({ onLogout }) => {
       image: 'https://images.unsplash.com/photo-1559056199-641a0ac8b3f4?w=300&h=300&fit=crop'
     }
   ]);
+
+  // useEffect untuk update waktu setiap detik
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      setCurrentTime(now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      setCurrentDate(now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   // Filter dan sort produk
   const getFilteredProducts = () => {
@@ -379,6 +394,122 @@ const HomePage = ({ onLogout }) => {
     return filtered.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   };
 
+  // Fungsi untuk get today's sales data
+  const getTodayStats = () => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStart = today.getTime();
+    const todayEnd = todayStart + (24 * 60 * 60 * 1000);
+    
+    const todayTransactions = transactions.filter(t => {
+      const txTimestamp = t.timestamp || 0;
+      return txTimestamp >= todayStart && txTimestamp < todayEnd;
+    });
+
+    const totalSales = todayTransactions.reduce((sum, t) => sum + t.total, 0);
+    const totalTransactions = todayTransactions.length;
+    const totalItems = todayTransactions.reduce((sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
+    const avgTransaction = totalTransactions > 0 ? Math.round(totalSales / totalTransactions) : 0;
+
+    return { totalSales, totalTransactions, totalItems, avgTransaction, todayTransactions };
+  };
+
+  // Fungsi untuk get yesterday's sales for comparison
+  const getYesterdayStats = () => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStart = yesterday.getTime();
+    const yesterdayEnd = yesterdayStart + (24 * 60 * 60 * 1000);
+    
+    const yesterdayTransactions = transactions.filter(t => {
+      const txTimestamp = t.timestamp || 0;
+      return txTimestamp >= yesterdayStart && txTimestamp < yesterdayEnd;
+    });
+
+    return yesterdayTransactions.reduce((sum, t) => sum + t.total, 0);
+  };
+
+  // Fungsi untuk get growth percentage
+  const getGrowthPercentage = () => {
+    const today = getTodayStats().totalSales;
+    const yesterday = getYesterdayStats();
+    
+    if (yesterday === 0) {
+      return today > 0 ? 100 : 0;
+    }
+    
+    return Math.round(((today - yesterday) / yesterday) * 100);
+  };
+
+  // Fungsi untuk get best performing hour
+  const getBestSellingTime = () => {
+    const hourStats = {};
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStart = today.getTime();
+    const todayEnd = todayStart + (24 * 60 * 60 * 1000);
+    
+    transactions.forEach(t => {
+      const txTimestamp = t.timestamp || 0;
+      if (txTimestamp >= todayStart && txTimestamp < todayEnd) {
+        const hour = new Date(txTimestamp).getHours();
+        if (!hourStats[hour]) {
+          hourStats[hour] = { hour, count: 0, total: 0 };
+        }
+        hourStats[hour].count += 1;
+        hourStats[hour].total += t.total;
+      }
+    });
+
+    if (Object.keys(hourStats).length === 0) {
+      return null;
+    }
+
+    const best = Object.values(hourStats).reduce((max, curr) => 
+      curr.count > max.count ? curr : max
+    );
+
+    return best;
+  };
+
+  // Fungsi untuk get daily breakdown (last 7 days)
+  const getDailyBreakdown = () => {
+    const days = {};
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // Initialize last 7 days
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateKey = date.toLocaleDateString('id-ID', { weekday: 'short', month: 'short', day: 'numeric' });
+      days[dateKey] = { date, sales: 0, count: 0 };
+    }
+
+    // Aggregate transactions menggunakan timestamp
+    transactions.forEach(t => {
+      const txTimestamp = t.timestamp || 0;
+      const txDate = new Date(txTimestamp);
+      const txDateOnly = new Date(txDate.getFullYear(), txDate.getMonth(), txDate.getDate());
+      
+      for (let i = 6; i >= 0; i--) {
+        const checkDate = new Date(today);
+        checkDate.setDate(checkDate.getDate() - i);
+        
+        if (txDateOnly.getTime() === checkDate.getTime()) {
+          const dateKey = checkDate.toLocaleDateString('id-ID', { weekday: 'short', month: 'short', day: 'numeric' });
+          days[dateKey].sales += t.total;
+          days[dateKey].count += 1;
+          break;
+        }
+      }
+    });
+
+    return Object.values(days);
+  };
+
   return (
     <div className="home-container">
       {/* Sidebar Navigation */}
@@ -399,11 +530,107 @@ const HomePage = ({ onLogout }) => {
                     <p className="welcome-subtitle">Selamat datang di Madura Mart POS System</p>
                   </div>
                   <div className="welcome-time">
-                    <div className="time-display">{getCurrentTime()}</div>
-                    <div className="date-display">{getCurrentDate()}</div>
+                    <div className="time-display">{currentTime}</div>
+                    <div className="date-display">{currentDate}</div>
                   </div>
                 </div>
               </div>
+
+              {/* Today's Performance Section */}
+              {transactions.length > 0 && (
+                <div className="todays-performance">
+                  <h3>📊 Performa Hari Ini</h3>
+                  <div className="performance-grid">
+                    <div className="perf-card sales">
+                      <div className="perf-icon">💰</div>
+                      <div className="perf-content">
+                        <p className="perf-label">Total Penjualan</p>
+                        <p className="perf-value">Rp {getTodayStats().totalSales.toLocaleString('id-ID')}</p>
+                        <p className={`perf-growth ${getGrowthPercentage() >= 0 ? 'positive' : 'negative'}`}>
+                          {getGrowthPercentage() > 0 ? '↑' : getGrowthPercentage() < 0 ? '↓' : '→'} {Math.abs(getGrowthPercentage())}% vs kemarin
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="perf-card transactions">
+                      <div className="perf-icon">📦</div>
+                      <div className="perf-content">
+                        <p className="perf-label">Transaksi</p>
+                        <p className="perf-value">{getTodayStats().totalTransactions}</p>
+                        <p className="perf-meta">transaksi</p>
+                      </div>
+                    </div>
+
+                    <div className="perf-card items">
+                      <div className="perf-icon">🛍️</div>
+                      <div className="perf-content">
+                        <p className="perf-label">Items Terjual</p>
+                        <p className="perf-value">{getTodayStats().totalItems}</p>
+                        <p className="perf-meta">produk</p>
+                      </div>
+                    </div>
+
+                    <div className="perf-card average">
+                      <div className="perf-icon">📈</div>
+                      <div className="perf-content">
+                        <p className="perf-label">Rata-rata</p>
+                        <p className="perf-value">Rp {getTodayStats().avgTransaction.toLocaleString('id-ID')}</p>
+                        <p className="perf-meta">per transaksi</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Best Selling Time */}
+              {getBestSellingTime() && (
+                <div className="best-time-section">
+                  <h3>⏰ Jam Paling Sibuk</h3>
+                  <div className="best-time-card">
+                    <div className="time-info">
+                      <p className="time-label">Waktu Puncak:</p>
+                      <p className="time-value">{String(getBestSellingTime().hour).padStart(2, '0')}:00 - {String(getBestSellingTime().hour + 1).padStart(2, '0')}:00</p>
+                    </div>
+                    <div className="time-stats">
+                      <div className="stat">
+                        <span className="stat-label">Transaksi:</span>
+                        <span className="stat-value">{getBestSellingTime().count}x</span>
+                      </div>
+                      <div className="stat">
+                        <span className="stat-label">Revenue:</span>
+                        <span className="stat-value">Rp {getBestSellingTime().total.toLocaleString('id-ID')}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Daily Breakdown (7 days) */}
+              {transactions.length > 0 && (
+                <div className="daily-breakdown-section">
+                  <h3>📅 Performa 7 Hari Terakhir</h3>
+                  <div className="daily-breakdown-list">
+                    {getDailyBreakdown().map((day, idx) => {
+                      const maxSales = Math.max(...getDailyBreakdown().map(d => d.sales), 1);
+                      const percentage = (day.sales / maxSales) * 100;
+                      return (
+                        <div key={idx} className="daily-item">
+                          <div className="daily-date">{day.date.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' })}</div>
+                          <div className="daily-chart">
+                            <div className="bar-container">
+                              <div className="bar" style={{ height: `${Math.max(percentage, 5)}%` }}></div>
+                            </div>
+                          </div>
+                          <div className="daily-stats">
+                            <p className="daily-sales">Rp {day.sales.toLocaleString('id-ID')}</p>
+                            <p className="daily-count">{day.count} tx</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Quick Action Buttons */}
               <div className="quick-actions">
