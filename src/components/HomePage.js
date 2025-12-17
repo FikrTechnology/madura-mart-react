@@ -11,6 +11,12 @@ const HomePage = ({ onLogout }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Semua');
   const [sortBy, setSortBy] = useState('name');
+  
+  // Payment states
+  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [amountPaid, setAmountPaid] = useState('');
+  const [showQRIS, setShowQRIS] = useState(false);
+  const [transactions, setTransactions] = useState([]);
 
   // Kategori yang tersedia
   const categories = [
@@ -156,7 +162,28 @@ const HomePage = ({ onLogout }) => {
   const handlePlaceOrder = () => {
     if (cartItems.length > 0) {
       setActiveMenu('order');
+      setPaymentMethod('cash');
+      setAmountPaid('');
+      setShowQRIS(false);
     }
+  };
+
+  const handlePaymentComplete = () => {
+    const total = Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1);
+    const newTransaction = {
+      id: Date.now(),
+      items: cartItems,
+      total: total,
+      paymentMethod: paymentMethod,
+      amountPaid: amountPaid || total,
+      change: amountPaid ? amountPaid - total : 0,
+      date: new Date().toLocaleString('id-ID')
+    };
+    
+    setTransactions([...transactions, newTransaction]);
+    setCartItems([]);
+    setActiveMenu('history');
+    setShowQRIS(false);
   };
 
   return (
@@ -290,17 +317,127 @@ const HomePage = ({ onLogout }) => {
 
                       <div className="payment-method">
                         <label>Metode Pembayaran:</label>
-                        <select defaultValue="cash">
+                        <select 
+                          value={paymentMethod}
+                          onChange={(e) => {
+                            setPaymentMethod(e.target.value);
+                            setAmountPaid('');
+                            setShowQRIS(false);
+                          }}
+                        >
                           <option value="cash">Tunai</option>
-                          <option value="card">Kartu Kredit</option>
-                          <option value="transfer">Transfer</option>
+                          <option value="transfer">Transfer Bank</option>
                           <option value="ewallet">E-Wallet</option>
                         </select>
                       </div>
 
+                      {/* Pembayaran Tunai */}
+                      {paymentMethod === 'cash' && (
+                        <div className="payment-cash">
+                          <h4>Pilih Nominal atau Isi Manual</h4>
+                          <div className="nominal-buttons">
+                            <button className="nominal-btn" onClick={() => setAmountPaid(5000)}>Rp 5.000</button>
+                            <button className="nominal-btn" onClick={() => setAmountPaid(10000)}>Rp 10.000</button>
+                            <button className="nominal-btn" onClick={() => setAmountPaid(20000)}>Rp 20.000</button>
+                            <button className="nominal-btn" onClick={() => setAmountPaid(50000)}>Rp 50.000</button>
+                            <button className="nominal-btn" onClick={() => setAmountPaid(100000)}>Rp 100.000</button>
+                          </div>
+                          <div className="manual-input-cash">
+                            <label>Atau isi manual:</label>
+                            <input
+                              type="number"
+                              value={amountPaid}
+                              onChange={(e) => setAmountPaid(parseInt(e.target.value) || '')}
+                              placeholder="Masukkan nominal..."
+                            />
+                          </div>
+                          {amountPaid && (
+                            <div className="cash-calculation">
+                              <div className="calc-row">
+                                <span>Total:</span>
+                                <span>Rp {Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1).toLocaleString('id-ID')}</span>
+                              </div>
+                              <div className="calc-row">
+                                <span>Uang Masuk:</span>
+                                <span>Rp {parseInt(amountPaid).toLocaleString('id-ID')}</span>
+                              </div>
+                              <div className={`calc-row total ${amountPaid >= Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1) ? 'valid' : 'invalid'}`}>
+                                <span>Kembalian:</span>
+                                <span>Rp {Math.max(0, parseInt(amountPaid) - Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1)).toLocaleString('id-ID')}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Pembayaran Transfer */}
+                      {paymentMethod === 'transfer' && (
+                        <div className="payment-transfer">
+                          <h4>Rekening Transfer</h4>
+                          <div className="bank-card">
+                            <div className="bank-header">
+                              <img src="https://images.unsplash.com/photo-1633356122544-f134ef2944f0?w=100&h=100&fit=crop" alt="Bank" className="bank-logo" />
+                              <div className="bank-info">
+                                <h5>Bank BCA</h5>
+                                <p>PT Madura Mart</p>
+                              </div>
+                            </div>
+                            <div className="bank-details">
+                              <div className="detail-row">
+                                <span>No. Rekening:</span>
+                                <span className="account-number">1234567890</span>
+                              </div>
+                              <div className="detail-row">
+                                <span>Atas Nama:</span>
+                                <span>Madura Mart Store</span>
+                              </div>
+                              <div className="detail-row amount">
+                                <span>Jumlah Transfer:</span>
+                                <span>Rp {Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1).toLocaleString('id-ID')}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Pembayaran E-Wallet */}
+                      {paymentMethod === 'ewallet' && (
+                        <div className="payment-ewallet">
+                          {!showQRIS ? (
+                            <div>
+                              <p className="qris-info">Klik tombol dibawah untuk menampilkan QRIS</p>
+                            </div>
+                          ) : (
+                            <div className="qris-container">
+                              <h4>Scan QRIS</h4>
+                              <img 
+                                src="https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=250&h=250&fit=crop" 
+                                alt="QRIS Code" 
+                                className="qris-code" 
+                              />
+                              <p className="qris-amount">Rp {Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1).toLocaleString('id-ID')}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <div className="payment-actions">
                         <button className="btn-back" onClick={() => setActiveMenu('menu')}>Kembali ke Menu</button>
-                        <button className="btn-pay">Lanjut Pembayaran</button>
+                        {paymentMethod === 'cash' && amountPaid && parseInt(amountPaid) >= Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1) && (
+                          <button className="btn-pay" onClick={handlePaymentComplete}>Selesai Pembayaran</button>
+                        )}
+                        {paymentMethod === 'cash' && (!amountPaid || parseInt(amountPaid) < Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1)) && (
+                          <button className="btn-pay disabled">Lanjut Pembayaran</button>
+                        )}
+                        {paymentMethod === 'transfer' && (
+                          <button className="btn-pay" onClick={handlePaymentComplete}>Selesai Pembayaran</button>
+                        )}
+                        {paymentMethod === 'ewallet' && !showQRIS && (
+                          <button className="btn-pay" onClick={() => setShowQRIS(true)}>Lanjut Pembayaran</button>
+                        )}
+                        {paymentMethod === 'ewallet' && showQRIS && (
+                          <button className="btn-pay" onClick={handlePaymentComplete}>Selesai Pembayaran</button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -317,9 +454,55 @@ const HomePage = ({ onLogout }) => {
           {/* History Section */}
           {activeMenu === 'history' && (
             <div className="content-section">
-              <div className="content-placeholder">
+              <div className="history-container">
                 <h2>Riwayat Transaksi</h2>
-                <p>Lihat histori semua transaksi di sini</p>
+                {transactions.length === 0 ? (
+                  <div className="empty-history">
+                    <p>Belum ada transaksi</p>
+                  </div>
+                ) : (
+                  <div className="transactions-list">
+                    {transactions.map((transaction) => (
+                      <div key={transaction.id} className="transaction-card">
+                        <div className="transaction-header">
+                          <div className="transaction-date">
+                            <span className="date-label">Tanggal:</span>
+                            <span className="date-value">{transaction.date}</span>
+                          </div>
+                          <div className="transaction-method">
+                            <span className={`method-badge ${transaction.paymentMethod}`}>
+                              {transaction.paymentMethod === 'cash' ? '💵 Tunai' : transaction.paymentMethod === 'transfer' ? '🏦 Transfer' : '📱 E-Wallet'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="transaction-items">
+                          <h4>Produk:</h4>
+                          {transaction.items.map(item => (
+                            <div key={item.id} className="receipt-item">
+                              <span className="item-name">{item.name}</span>
+                              <span className="item-qty">x{item.quantity}</span>
+                              <span className="item-price">Rp {(item.price * item.quantity).toLocaleString('id-ID')}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="transaction-summary">
+                          <div className="summary-line">
+                            <span>Total:</span>
+                            <span>Rp {transaction.total.toLocaleString('id-ID')}</span>
+                          </div>
+                          {transaction.change > 0 && (
+                            <div className="summary-line">
+                              <span>Kembalian:</span>
+                              <span>Rp {transaction.change.toLocaleString('id-ID')}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

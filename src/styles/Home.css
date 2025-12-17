@@ -565,6 +565,403 @@
   transform: translateY(0);
 }
 
+.btn-pay.disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.btn-pay.disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* ======================== */
+/* Payment Methods Styling */
+/* ======================== */
+.payment-cash,
+.payment-transfer,
+.payment-ewallet {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 16px;
+}
+
+.payment-cash h4,
+.payment-transfer h4,
+.payment-ewallet h4 {
+  margin: 0 0 16px 0;
+  color: #1a1a1a;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Pembayaran Tunai */
+.nominal-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.nominal-btn {
+  padding: 10px;
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #667eea;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.nominal-btn:hover {
+  border-color: #667eea;
+  background: #f8f9ff;
+}
+
+.nominal-btn:active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+.manual-input-cash {
+  margin-bottom: 16px;
+}
+
+.manual-input-cash label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.manual-input-cash input {
+  width: 100%;
+  padding: 10px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.manual-input-cash input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.cash-calculation {
+  background: #f9f9f9;
+  border-radius: 8px;
+  padding: 12px;
+  border-left: 4px solid #667eea;
+}
+
+.calc-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.calc-row:last-child {
+  margin-bottom: 0;
+}
+
+.calc-row.total {
+  font-weight: 700;
+  color: #1a1a1a;
+  padding-top: 8px;
+  border-top: 1px solid #e0e0e0;
+  margin-top: 8px;
+}
+
+.calc-row.total.invalid {
+  color: #e74c3c;
+}
+
+.calc-row.total.valid {
+  color: #27ae60;
+}
+
+/* Pembayaran Transfer */
+.bank-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 20px;
+  color: white;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.bank-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.bank-logo {
+  width: 50px;
+  height: 50px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.bank-info h5 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.bank-info p {
+  margin: 4px 0 0 0;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.bank-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.account-number {
+  font-family: 'Courier New', monospace;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.detail-row.amount {
+  background: rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  border-radius: 6px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+/* Pembayaran E-Wallet */
+.qris-info {
+  text-align: center;
+  color: #666;
+  font-size: 14px;
+  padding: 20px;
+}
+
+.qris-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.qris-code {
+  width: 200px;
+  height: 200px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.qris-amount {
+  font-size: 16px;
+  font-weight: 700;
+  color: #667eea;
+}
+
+/* ======================== */
+/* History Styling */
+/* ======================== */
+.history-container {
+  padding: 24px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.history-container h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 24px;
+}
+
+.empty-history {
+  background: white;
+  border-radius: 12px;
+  padding: 40px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.empty-history p {
+  color: #666;
+  font-size: 16px;
+}
+
+.transactions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.transaction-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border-left: 4px solid #667eea;
+}
+
+.transaction-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.transaction-date {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.date-label {
+  color: #666;
+  font-weight: 600;
+}
+
+.date-value {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+.method-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  background: #f0f0f0;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #667eea;
+}
+
+.method-badge.cash {
+  background: #ffeaa7;
+  color: #d63031;
+}
+
+.method-badge.transfer {
+  background: #dfe6e9;
+  color: #0984e3;
+}
+
+.method-badge.ewallet {
+  background: #a29bfe;
+  color: #6c5ce7;
+}
+
+.transaction-items {
+  margin-bottom: 16px;
+}
+
+.transaction-items h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 12px 0;
+}
+
+.receipt-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  font-size: 12px;
+  color: #666;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.receipt-item:last-child {
+  border-bottom: none;
+}
+
+.item-name {
+  color: #1a1a1a;
+  font-weight: 500;
+}
+
+.item-qty {
+  text-align: right;
+  color: #667eea;
+  font-weight: 600;
+  min-width: 40px;
+}
+
+.item-price {
+  text-align: right;
+  color: #1a1a1a;
+  font-weight: 600;
+  min-width: 80px;
+}
+
+.transaction-summary {
+  background: #f9f9f9;
+  border-radius: 8px;
+  padding: 12px;
+  border-left: 3px solid #667eea;
+}
+
+.summary-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: 8px;
+}
+
+.summary-line:last-child {
+  margin-bottom: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .nominal-buttons {
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  }
+
+  .transaction-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .receipt-item {
+    grid-template-columns: 1fr auto;
+  }
+
+  .item-qty,
+  .item-price {
+    text-align: right;
+  }
+}
+
 /* Empty Order */
 .empty-order {
   background: white;
