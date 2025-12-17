@@ -17,6 +17,12 @@ const HomePage = ({ onLogout }) => {
   const [amountPaid, setAmountPaid] = useState('');
   const [showQRIS, setShowQRIS] = useState(false);
   const [transactions, setTransactions] = useState([]);
+  
+  // History page states
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
+  const [historyFilterMethod, setHistoryFilterMethod] = useState('all');
+  const [historySortBy, setHistorySortBy] = useState('newest');
 
   // Kategori yang tersedia
   const categories = [
@@ -117,6 +123,34 @@ const HomePage = ({ onLogout }) => {
     return filtered;
   };
 
+  // Filter dan sort untuk history
+  const getFilteredTransactions = () => {
+    let filtered = [...transactions];
+
+    // Filter berdasarkan search query
+    if (historySearchQuery.trim()) {
+      filtered = filtered.filter(transaction =>
+        transaction.items.some(item =>
+          item.name.toLowerCase().includes(historySearchQuery.toLowerCase())
+        ) || transaction.id.toString().includes(historySearchQuery)
+      );
+    }
+
+    // Filter berdasarkan metode pembayaran
+    if (historyFilterMethod !== 'all') {
+      filtered = filtered.filter(t => t.paymentMethod === historyFilterMethod);
+    }
+
+    // Sort berdasarkan tanggal
+    if (historySortBy === 'newest') {
+      filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+    } else if (historySortBy === 'oldest') {
+      filtered.sort((a, b) => new Date(a.date) - new Date(b.date));
+    }
+
+    return filtered;
+  };
+
   const handleAddToCart = (product) => {
     const existingItem = cartItems.find(item => item.id === product.id);
     
@@ -184,6 +218,102 @@ const HomePage = ({ onLogout }) => {
     setCartItems([]);
     setActiveMenu('history');
     setShowQRIS(false);
+  };
+
+  // Fungsi untuk menghitung sales summary
+  const calculateSalesStats = () => {
+    if (transactions.length === 0) {
+      return {
+        totalSales: 0,
+        totalTransactions: 0,
+        totalItems: 0,
+        averageTransaction: 0
+      };
+    }
+
+    const totalSales = transactions.reduce((sum, t) => sum + t.total, 0);
+    const totalTransactions = transactions.length;
+    const totalItems = transactions.reduce((sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
+    const averageTransaction = Math.round(totalSales / totalTransactions);
+
+    return {
+      totalSales,
+      totalTransactions,
+      totalItems,
+      averageTransaction
+    };
+  };
+
+  // Fungsi untuk mendapatkan top 5 produk terlaris
+  const getTopProducts = () => {
+    const productSales = {};
+    
+    transactions.forEach(transaction => {
+      transaction.items.forEach(item => {
+        if (!productSales[item.id]) {
+          productSales[item.id] = {
+            id: item.id,
+            name: item.name,
+            quantity: 0,
+            revenue: 0
+          };
+        }
+        productSales[item.id].quantity += item.quantity;
+        productSales[item.id].revenue += item.price * item.quantity;
+      });
+    });
+
+    return Object.values(productSales)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 5);
+  };
+
+  // Fungsi untuk kategori performa
+  const getCategoryPerformance = () => {
+    const categoryStats = {};
+
+    products.forEach(product => {
+      if (!categoryStats[product.category]) {
+        categoryStats[product.category] = {
+          category: product.category,
+          quantity: 0,
+          revenue: 0
+        };
+      }
+    });
+
+    transactions.forEach(transaction => {
+      transaction.items.forEach(item => {
+        const product = products.find(p => p.id === item.id);
+        if (product && categoryStats[product.category]) {
+          categoryStats[product.category].quantity += item.quantity;
+          categoryStats[product.category].revenue += item.price * item.quantity;
+        }
+      });
+    });
+
+    return Object.values(categoryStats)
+      .sort((a, b) => b.revenue - a.revenue)
+      .filter(cat => cat.revenue > 0);
+  };
+
+  // Fungsi untuk payment method breakdown
+  const getPaymentMethodBreakdown = () => {
+    const breakdown = {
+      cash: { count: 0, total: 0 },
+      transfer: { count: 0, total: 0 },
+      ewallet: { count: 0, total: 0 }
+    };
+
+    transactions.forEach(transaction => {
+      const method = transaction.paymentMethod;
+      if (breakdown[method]) {
+        breakdown[method].count += 1;
+        breakdown[method].total += transaction.total;
+      }
+    });
+
+    return breakdown;
   };
 
   return (
@@ -453,66 +583,306 @@ const HomePage = ({ onLogout }) => {
 
           {/* History Section */}
           {activeMenu === 'history' && (
-            <div className="content-section">
-              <div className="history-container">
-                <h2>Riwayat Transaksi</h2>
+            <div className="history-content">
+              <div className="history-main">
+                <div className="history-header">
+                  <h2>Riwayat Transaksi</h2>
+                </div>
+
+                {/* Search, Filter, Sort Bar */}
+                <div className="history-controls">
+                  <div className="history-search">
+                    <input
+                      type="text"
+                      className="history-search-input"
+                      placeholder="🔍 Cari receipt..."
+                      value={historySearchQuery}
+                      onChange={(e) => setHistorySearchQuery(e.target.value)}
+                    />
+                  </div>
+                  <div className="history-filters">
+                    <select
+                      className="filter-select"
+                      value={historyFilterMethod}
+                      onChange={(e) => setHistoryFilterMethod(e.target.value)}
+                    >
+                      <option value="all">🔗 Semua Metode</option>
+                      <option value="cash">💵 Tunai</option>
+                      <option value="transfer">🏦 Transfer</option>
+                      <option value="ewallet">📱 E-Wallet</option>
+                    </select>
+                    <select
+                      className="sort-select-history"
+                      value={historySortBy}
+                      onChange={(e) => setHistorySortBy(e.target.value)}
+                    >
+                      <option value="newest">📅 Terbaru</option>
+                      <option value="oldest">📅 Terlama</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Transactions List */}
                 {transactions.length === 0 ? (
                   <div className="empty-history">
                     <p>Belum ada transaksi</p>
                   </div>
+                ) : getFilteredTransactions().length === 0 ? (
+                  <div className="empty-history">
+                    <p>Tidak ada transaksi yang sesuai dengan filter</p>
+                  </div>
                 ) : (
-                  <div className="transactions-list">
-                    {transactions.map((transaction) => (
-                      <div key={transaction.id} className="transaction-card">
-                        <div className="transaction-header">
-                          <div className="transaction-date">
-                            <span className="date-label">Tanggal:</span>
-                            <span className="date-value">{transaction.date}</span>
+                  <div className="transactions-cards-list">
+                    {getFilteredTransactions().map((transaction) => (
+                      <div
+                        key={transaction.id}
+                        className={`transaction-list-card ${selectedTransaction?.id === transaction.id ? 'active' : ''}`}
+                        onClick={() => setSelectedTransaction(transaction)}
+                      >
+                        <div className="card-icon">
+                          {transaction.paymentMethod === 'cash' ? '💵' : transaction.paymentMethod === 'transfer' ? '🏦' : '📱'}
+                        </div>
+                        <div className="card-info">
+                          <div className="card-datetime">
+                            {transaction.date}
                           </div>
-                          <div className="transaction-method">
-                            <span className={`method-badge ${transaction.paymentMethod}`}>
-                              {transaction.paymentMethod === 'cash' ? '💵 Tunai' : transaction.paymentMethod === 'transfer' ? '🏦 Transfer' : '📱 E-Wallet'}
-                            </span>
+                          <div className="card-outlet">
+                            Outlet: Madura Mart
                           </div>
                         </div>
-
-                        <div className="transaction-items">
-                          <h4>Produk:</h4>
-                          {transaction.items.map(item => (
-                            <div key={item.id} className="receipt-item">
-                              <span className="item-name">{item.name}</span>
-                              <span className="item-qty">x{item.quantity}</span>
-                              <span className="item-price">Rp {(item.price * item.quantity).toLocaleString('id-ID')}</span>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="transaction-summary">
-                          <div className="summary-line">
-                            <span>Total:</span>
-                            <span>Rp {transaction.total.toLocaleString('id-ID')}</span>
-                          </div>
-                          {transaction.change > 0 && (
-                            <div className="summary-line">
-                              <span>Kembalian:</span>
-                              <span>Rp {transaction.change.toLocaleString('id-ID')}</span>
-                            </div>
-                          )}
+                        <div className="card-method">
+                          <span className={`method-badge-small ${transaction.paymentMethod}`}>
+                            {transaction.paymentMethod === 'cash' ? 'Tunai' : transaction.paymentMethod === 'transfer' ? 'Transfer' : 'E-Wallet'}
+                          </span>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
+
+              {/* Receipt Sidebar */}
+              <aside className="receipt-sidebar">
+                {selectedTransaction ? (
+                  <div className="receipt-detail">
+                    <div className="receipt-header">
+                      <h3>Receipt #{selectedTransaction.id}</h3>
+                      <button
+                        className="close-receipt"
+                        onClick={() => setSelectedTransaction(null)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="receipt-content">
+                      <div className="receipt-section">
+                        <label>Tanggal & Waktu:</label>
+                        <p>{selectedTransaction.date}</p>
+                      </div>
+
+                      <div className="receipt-section">
+                        <label>Metode Pembayaran:</label>
+                        <p>
+                          {selectedTransaction.paymentMethod === 'cash' ? '💵 Tunai' : selectedTransaction.paymentMethod === 'transfer' ? '🏦 Transfer Bank' : '📱 E-Wallet'}
+                        </p>
+                      </div>
+
+                      <div className="receipt-section">
+                        <label>Produk:</label>
+                        <div className="receipt-items">
+                          {selectedTransaction.items.map(item => (
+                            <div key={item.id} className="receipt-item-detail">
+                              <span className="item-name">{item.name}</span>
+                              <span className="item-qty">x{item.quantity}</span>
+                              <span className="item-total">Rp {(item.price * item.quantity).toLocaleString('id-ID')}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="receipt-summary">
+                        <div className="summary-item">
+                          <span>Subtotal:</span>
+                          <span>Rp {Math.round(selectedTransaction.total / 1.1).toLocaleString('id-ID')}</span>
+                        </div>
+                        <div className="summary-item">
+                          <span>Pajak (10%):</span>
+                          <span>Rp {Math.round(selectedTransaction.total * 0.1 / 1.1).toLocaleString('id-ID')}</span>
+                        </div>
+                        <div className="summary-item total">
+                          <span>Total:</span>
+                          <span>Rp {selectedTransaction.total.toLocaleString('id-ID')}</span>
+                        </div>
+                        {selectedTransaction.change > 0 && (
+                          <div className="summary-item change">
+                            <span>Kembalian:</span>
+                            <span>Rp {selectedTransaction.change.toLocaleString('id-ID')}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="receipt-empty">
+                    <p>Pilih transaksi untuk melihat detail receipt</p>
+                  </div>
+                )}
+              </aside>
             </div>
           )}
 
           {/* Report Section */}
           {activeMenu === 'report' && (
-            <div className="content-section">
-              <div className="content-placeholder">
-                <h2>Laporan</h2>
-                <p>Lihat laporan penjualan dan statistik di sini</p>
+            <div className="report-section">
+              <div className="report-container">
+                <div className="report-header">
+                  <h2>Laporan Penjualan</h2>
+                  <p className="report-subtitle">Ringkasan performa penjualan Anda</p>
+                </div>
+
+                {transactions.length === 0 ? (
+                  <div className="empty-report">
+                    <h3>Belum ada data transaksi</h3>
+                    <p>Mulai melakukan transaksi untuk melihat laporan penjualan</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Sales Summary Cards */}
+                    <div className="report-summary-grid">
+                      <div className="summary-card">
+                        <div className="card-icon">💰</div>
+                        <div className="card-content">
+                          <p className="card-label">Total Penjualan</p>
+                          <p className="card-value">Rp {calculateSalesStats().totalSales.toLocaleString('id-ID')}</p>
+                        </div>
+                      </div>
+
+                      <div className="summary-card">
+                        <div className="card-icon">📦</div>
+                        <div className="card-content">
+                          <p className="card-label">Total Transaksi</p>
+                          <p className="card-value">{calculateSalesStats().totalTransactions}</p>
+                        </div>
+                      </div>
+
+                      <div className="summary-card">
+                        <div className="card-icon">📊</div>
+                        <div className="card-content">
+                          <p className="card-label">Total Produk Terjual</p>
+                          <p className="card-value">{calculateSalesStats().totalItems} items</p>
+                        </div>
+                      </div>
+
+                      <div className="summary-card">
+                        <div className="card-icon">📈</div>
+                        <div className="card-content">
+                          <p className="card-label">Rata-rata Transaksi</p>
+                          <p className="card-value">Rp {calculateSalesStats().averageTransaction.toLocaleString('id-ID')}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Payment Method Breakdown */}
+                    <div className="report-grid">
+                      <div className="report-card payment-breakdown">
+                        <h3>Metode Pembayaran</h3>
+                        <div className="payment-stats">
+                          {(() => {
+                            const breakdown = getPaymentMethodBreakdown();
+                            return (
+                              <>
+                                <div className="payment-row">
+                                  <div className="payment-info">
+                                    <span className="payment-icon">💵</span>
+                                    <div>
+                                      <p className="payment-name">Tunai</p>
+                                      <p className="payment-count">{breakdown.cash.count} transaksi</p>
+                                    </div>
+                                  </div>
+                                  <p className="payment-amount">Rp {breakdown.cash.total.toLocaleString('id-ID')}</p>
+                                </div>
+
+                                <div className="payment-row">
+                                  <div className="payment-info">
+                                    <span className="payment-icon">🏦</span>
+                                    <div>
+                                      <p className="payment-name">Transfer</p>
+                                      <p className="payment-count">{breakdown.transfer.count} transaksi</p>
+                                    </div>
+                                  </div>
+                                  <p className="payment-amount">Rp {breakdown.transfer.total.toLocaleString('id-ID')}</p>
+                                </div>
+
+                                <div className="payment-row">
+                                  <div className="payment-info">
+                                    <span className="payment-icon">📱</span>
+                                    <div>
+                                      <p className="payment-name">E-Wallet</p>
+                                      <p className="payment-count">{breakdown.ewallet.count} transaksi</p>
+                                    </div>
+                                  </div>
+                                  <p className="payment-amount">Rp {breakdown.ewallet.total.toLocaleString('id-ID')}</p>
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+
+                      {/* Top Products */}
+                      <div className="report-card top-products">
+                        <h3>Produk Terlaris</h3>
+                        <div className="products-table">
+                          <div className="table-header">
+                            <div className="col-no">No</div>
+                            <div className="col-name">Produk</div>
+                            <div className="col-qty">Terjual</div>
+                            <div className="col-revenue">Revenue</div>
+                          </div>
+                          {getTopProducts().length === 0 ? (
+                            <p className="no-data">Belum ada data produk</p>
+                          ) : (
+                            getTopProducts().map((product, index) => (
+                              <div key={product.id} className="table-row">
+                                <div className="col-no">{index + 1}</div>
+                                <div className="col-name">{product.name}</div>
+                                <div className="col-qty">{product.quantity}</div>
+                                <div className="col-revenue">Rp {product.revenue.toLocaleString('id-ID')}</div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Category Performance */}
+                    <div className="report-card category-performance">
+                      <h3>Performa Kategori</h3>
+                      <div className="category-stats">
+                        {getCategoryPerformance().length === 0 ? (
+                          <p className="no-data">Belum ada data kategori</p>
+                        ) : (
+                          getCategoryPerformance().map((cat) => {
+                            const maxRevenue = Math.max(...getCategoryPerformance().map(c => c.revenue));
+                            const percentage = (cat.revenue / maxRevenue) * 100;
+                            return (
+                              <div key={cat.category} className="category-row">
+                                <div className="category-info">
+                                  <p className="category-name">{cat.category}</p>
+                                  <p className="category-detail">{cat.quantity} items • Rp {cat.revenue.toLocaleString('id-ID')}</p>
+                                </div>
+                                <div className="progress-bar">
+                                  <div className="progress-fill" style={{ width: `${percentage}%` }}></div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
