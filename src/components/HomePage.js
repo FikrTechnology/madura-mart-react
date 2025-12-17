@@ -214,7 +214,8 @@ const HomePage = ({ onLogout }) => {
       paymentMethod: paymentMethod,
       amountPaid: amountPaid || total,
       change: amountPaid ? amountPaid - total : 0,
-      date: new Date().toLocaleString('id-ID')
+      date: new Date().toLocaleString('id-ID'),
+      timestamp: Date.now()
     };
     
     setTransactions([...transactions, newTransaction]);
@@ -356,7 +357,7 @@ const HomePage = ({ onLogout }) => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
-    return transactions.filter(t => {
+    const filtered = transactions.filter(t => {
       const txDate = new Date(t.date);
       const txDateOnly = new Date(txDate.getFullYear(), txDate.getMonth(), txDate.getDate());
       
@@ -373,6 +374,9 @@ const HomePage = ({ onLogout }) => {
       }
       return true; // all
     });
+
+    // Sort dari terbaru (descending) menggunakan timestamp
+    return filtered.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
   };
 
   return (
@@ -1156,32 +1160,34 @@ const HomePage = ({ onLogout }) => {
                     {getFilteredTransactionsByPeriod().length > 0 && (
                       <div className="report-card recent-transactions-report">
                         <h3>Transaksi Terbaru</h3>
-                        <div className="recent-list">
-                          {getFilteredTransactionsByPeriod().slice(0, 5).map((transaction, index) => (
-                            <div 
-                              key={transaction.id} 
-                              className="recent-item"
-                              onClick={() => {
-                                setSelectedTransaction(transaction);
-                                setActiveMenu('history');
-                              }}
-                            >
-                              <div className="recent-number">{index + 1}</div>
-                              <div className="recent-icon">
-                                {transaction.paymentMethod === 'cash' ? '💵' : transaction.paymentMethod === 'transfer' ? '🏦' : '📱'}
-                              </div>
-                              <div className="recent-info">
-                                <div className="recent-method">
-                                  {transaction.paymentMethod === 'cash' ? 'Tunai' : transaction.paymentMethod === 'transfer' ? 'Transfer' : 'E-Wallet'}
+                        <div className="recent-list-scroll">
+                          <div className="recent-list">
+                            {getFilteredTransactionsByPeriod().slice(0, 5).map((transaction, index) => (
+                              <div 
+                                key={transaction.id} 
+                                className="recent-item"
+                                onClick={() => {
+                                  setSelectedTransaction(transaction);
+                                  setActiveMenu('history');
+                                }}
+                              >
+                                <div className="recent-number">{index + 1}</div>
+                                <div className="recent-icon">
+                                  {transaction.paymentMethod === 'cash' ? '💵' : transaction.paymentMethod === 'transfer' ? '🏦' : '📱'}
                                 </div>
-                                <div className="recent-time">{transaction.date}</div>
+                                <div className="recent-info">
+                                  <div className="recent-method">
+                                    {transaction.paymentMethod === 'cash' ? 'Tunai' : transaction.paymentMethod === 'transfer' ? 'Transfer' : 'E-Wallet'}
+                                  </div>
+                                  <div className="recent-time">{transaction.date}</div>
+                                </div>
+                                <div className="recent-amount">
+                                  Rp {transaction.total.toLocaleString('id-ID')}
+                                </div>
+                                <div className="recent-arrow">→</div>
                               </div>
-                              <div className="recent-amount">
-                                Rp {transaction.total.toLocaleString('id-ID')}
-                              </div>
-                              <div className="recent-arrow">→</div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
                       </div>
                     )}
