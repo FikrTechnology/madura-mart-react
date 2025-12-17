@@ -3,6 +3,8 @@ import '../styles/Home.css';
 import Sidebar from './Sidebar';
 import ProductCard from './ProductCard';
 import Cart from './Cart';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const HomePage = ({ onLogout }) => {
   const [activeMenu, setActiveMenu] = useState('home');
@@ -371,21 +373,24 @@ const HomePage = ({ onLogout }) => {
   const getFilteredTransactionsByPeriod = () => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStart = today.getTime();
+    const todayEnd = todayStart + (24 * 60 * 60 * 1000);
     
     const filtered = transactions.filter(t => {
-      const txDate = new Date(t.date);
-      const txDateOnly = new Date(txDate.getFullYear(), txDate.getMonth(), txDate.getDate());
+      const txTimestamp = t.timestamp || 0;
       
       if (reportTimePeriod === 'today') {
-        return txDateOnly.getTime() === today.getTime();
+        return txTimestamp >= todayStart && txTimestamp < todayEnd;
       } else if (reportTimePeriod === 'week') {
         const weekAgo = new Date(today);
         weekAgo.setDate(weekAgo.getDate() - 7);
-        return txDateOnly.getTime() >= weekAgo.getTime();
+        const weekAgoStart = weekAgo.getTime();
+        return txTimestamp >= weekAgoStart && txTimestamp < todayEnd;
       } else if (reportTimePeriod === 'month') {
         const monthAgo = new Date(today);
         monthAgo.setMonth(monthAgo.getMonth() - 1);
-        return txDateOnly.getTime() >= monthAgo.getTime();
+        const monthAgoStart = monthAgo.getTime();
+        return txTimestamp >= monthAgoStart && txTimestamp < todayEnd;
       }
       return true; // all
     });
@@ -508,6 +513,264 @@ const HomePage = ({ onLogout }) => {
     });
 
     return Object.values(days);
+  };
+
+  // Fungsi untuk export report ke PDF
+  const exportReportToPDF = () => {
+    try {
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let yPosition = 15;
+      const margin = 15;
+      const lineHeight = 7;
+      const maxWidth = pageWidth - (margin * 2);
+
+      // Fungsi helper untuk wrap text
+      const addWrappedText = (text, x, y, fontSize, fontStyle = 'normal', maxW = maxWidth) => {
+        doc.setFontSize(fontSize);
+        doc.setFont(undefined, fontStyle);
+        const lines = doc.splitTextToSize(text, maxW);
+        doc.text(lines, x, y);
+        return y + (lines.length * lineHeight);
+      };
+
+      // Fungsi helper untuk membuat garis separator
+      const drawLine = (y) => {
+        doc.setDrawColor(200);
+        doc.line(margin, y, pageWidth - margin, y);
+        return y + 5;
+      };
+
+      // Header
+      yPosition = addWrappedText('LAPORAN PENJUALAN', pageWidth / 2, yPosition, 18, 'bold', maxWidth);
+      yPosition += 5;
+
+      // Tanggal dan Periode
+      yPosition = addWrappedText(`Tanggal: ${new Date().toLocaleDateString('id-ID')}`, pageWidth / 2, yPosition, 10);
+      
+      const periodLabel = {
+        'today': 'Periode: Hari Ini',
+        'week': 'Periode: 7 Hari Terakhir',
+        'month': 'Periode: 30 Hari Terakhir',
+        'all': 'Periode: Semua Waktu'
+      }[reportTimePeriod];
+      
+      yPosition = addWrappedText(periodLabel, pageWidth / 2, yPosition, 10);
+      yPosition += 5;
+      yPosition = drawLine(yPosition);
+
+      const filteredData = getFilteredTransactionsByPeriod();
+      
+      if (filteredData.length === 0) {
+        yPosition = addWrappedText('Belum ada data transaksi untuk periode ini', margin, yPosition, 11);
+        doc.save(`Laporan_Penjualan_${new Date().getTime()}.pdf`);
+        return;
+      }
+
+      // Summary Cards Data
+      const totalSales = filteredData.reduce((sum, t) => sum + t.total, 0);
+      const totalTransactions = filteredData.length;
+      const totalItems = filteredData.reduce((sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
+      const avgTransaction = Math.round(totalSales / totalTransactions);
+
+      // Summary Section
+      yPosition = addWrappedText('RINGKASAN PENJUALAN', margin, yPosition, 11, 'bold');
+      yPosition += 3;
+
+      const summaryData = [
+        ['Total Penjualan', `Rp ${totalSales.toLocaleString('id-ID')}`],
+        ['Total Transaksi', `${totalTransactions}`],
+        ['Total Item Terjual', `${totalItems}`],
+        ['Rata-rata Transaksi', `Rp ${avgTransaction.toLocaleString('id-ID')}`]
+      ];
+
+      summaryData.forEach(([label, value]) => {
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        doc.text(`${label}: `, margin, yPosition);
+        doc.setFont(undefined, 'bold');
+        doc.text(`${value}`, pageWidth - margin - 40, yPosition, { align: 'right' });
+        yPosition += 6;
+      });
+
+      yPosition += 5;
+      yPosition = drawLine(yPosition);
+
+      // Payment Method Breakdown
+      yPosition = addWrappedText('METODE PEMBAYARAN', margin, yPosition, 11, 'bold');
+      yPosition += 3;
+
+      const breakdown = { cash: { count: 0, total: 0 }, transfer: { count: 0, total: 0 }, ewallet: { count: 0, total: 0 } };
+      filteredData.forEach(t => {
+        const method = t.paymentMethod;
+        if (breakdown[method]) {
+          breakdown[method].count += 1;
+          breakdown[method].total += t.total;
+        }
+      });
+
+      const paymentMethods = [
+        { name: 'Tunai', data: breakdown.cash },
+        { name: 'Transfer', data: breakdown.transfer },
+        { name: 'E-Wallet', data: breakdown.ewallet }
+      ];
+
+      paymentMethods.forEach(({ name, data }) => {
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        doc.text(`${name}: `, margin, yPosition);
+        doc.text(`${data.count} transaksi`, margin + 40, yPosition);
+        doc.setFont(undefined, 'bold');
+        doc.text(`Rp ${data.total.toLocaleString('id-ID')}`, pageWidth - margin - 30, yPosition, { align: 'right' });
+        yPosition += 6;
+      });
+
+      yPosition += 5;
+
+      // Check if we need new page
+      if (yPosition > pageHeight - 60) {
+        doc.addPage();
+        yPosition = 15;
+      }
+
+      yPosition = drawLine(yPosition);
+
+      // Top Products
+      yPosition = addWrappedText('PRODUK TERLARIS (Top 5)', margin, yPosition, 11, 'bold');
+      yPosition += 3;
+
+      const productSales = {};
+      filteredData.forEach(transaction => {
+        transaction.items.forEach(item => {
+          if (!productSales[item.id]) {
+            productSales[item.id] = {
+              id: item.id,
+              name: item.name,
+              quantity: 0,
+              revenue: 0
+            };
+          }
+          productSales[item.id].quantity += item.quantity;
+          productSales[item.id].revenue += item.price * item.quantity;
+        });
+      });
+
+      const topProducts = Object.values(productSales)
+        .sort((a, b) => b.quantity - a.quantity)
+        .slice(0, 5);
+
+      topProducts.forEach((product, idx) => {
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'normal');
+        const productInfo = `${idx + 1}. ${product.name} (${product.quantity}x)`;
+        doc.text(productInfo, margin, yPosition);
+        doc.setFont(undefined, 'bold');
+        doc.text(`Rp ${product.revenue.toLocaleString('id-ID')}`, pageWidth - margin - 30, yPosition, { align: 'right' });
+        yPosition += 5;
+      });
+
+      yPosition += 5;
+
+      // Check if we need new page
+      if (yPosition > pageHeight - 60) {
+        doc.addPage();
+        yPosition = 15;
+      }
+
+      yPosition = drawLine(yPosition);
+
+      // Daftar Produk Terjual (untuk kebutuhan restock)
+      yPosition = addWrappedText('DAFTAR PRODUK TERJUAL', margin, yPosition, 11, 'bold');
+      yPosition += 2;
+      yPosition = addWrappedText('(Untuk Restock)', margin, yPosition, 8, 'italic');
+      yPosition += 3;
+
+      // Gunakan productSales yang sudah dihitung sebelumnya
+      const allProducts = Object.values(productSales)
+        .sort((a, b) => b.quantity - a.quantity);
+
+      if (allProducts.length > 0) {
+        // Header untuk tabel
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'bold');
+        doc.text('No', margin, yPosition);
+        doc.text('Nama Produk', margin + 10, yPosition);
+        doc.text('Qty', margin + 90, yPosition);
+        doc.text('Revenue', pageWidth - margin - 30, yPosition, { align: 'right' });
+        yPosition += 6;
+
+        // Garis pemisah
+        doc.setDrawColor(220);
+        doc.line(margin, yPosition - 2, pageWidth - margin, yPosition - 2);
+        yPosition += 3;
+
+        // Daftar produk
+        allProducts.forEach((product, idx) => {
+          doc.setFontSize(8);
+          doc.setFont(undefined, 'normal');
+          
+          // Nomor
+          doc.text(`${idx + 1}`, margin, yPosition);
+          
+          // Nama produk (wrap jika terlalu panjang)
+          const productName = product.name.length > 50 ? product.name.substring(0, 50) + '...' : product.name;
+          doc.text(productName, margin + 10, yPosition);
+          
+          // Quantity
+          doc.text(`${product.quantity}x`, margin + 90, yPosition);
+          
+          // Revenue
+          doc.setFont(undefined, 'bold');
+          doc.text(`Rp ${product.revenue.toLocaleString('id-ID')}`, pageWidth - margin - 30, yPosition, { align: 'right' });
+          
+          yPosition += 5;
+
+          // Check if we need new page
+          if (yPosition > pageHeight - 30) {
+            doc.addPage();
+            yPosition = 15;
+            
+            // Ulangi header di halaman baru
+            doc.setFontSize(8);
+            doc.setFont(undefined, 'bold');
+            doc.text('No', margin, yPosition);
+            doc.text('Nama Produk', margin + 10, yPosition);
+            doc.text('Qty', margin + 90, yPosition);
+            doc.text('Revenue', pageWidth - margin - 30, yPosition, { align: 'right' });
+            yPosition += 6;
+            doc.setDrawColor(220);
+            doc.line(margin, yPosition - 2, pageWidth - margin, yPosition - 2);
+            yPosition += 3;
+          }
+        });
+      } else {
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'normal');
+        doc.text('Tidak ada data produk terjual', margin, yPosition);
+        yPosition += 5;
+      }
+
+      yPosition += 10;
+      yPosition = drawLine(yPosition);
+
+      // Footer
+      doc.setFontSize(7);
+      doc.setFont(undefined, 'italic');
+      doc.setTextColor(150);
+      const footerText = `Dokumen ini di-generate otomatis oleh Madura Mart POS System pada ${new Date().toLocaleString('id-ID')}`;
+      const footerLines = doc.splitTextToSize(footerText, maxWidth);
+      doc.text(footerLines, pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+      // Reset text color
+      doc.setTextColor(0);
+
+      // Save PDF
+      doc.save(`Laporan_Penjualan_${new Date().getTime()}.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Gagal membuat PDF report. Error: ' + error.message);
+    }
   };
 
   return (
@@ -1125,6 +1388,15 @@ const HomePage = ({ onLogout }) => {
                       <option value="month">30 Hari Terakhir</option>
                       <option value="all">Semua Waktu</option>
                     </select>
+                    {getFilteredTransactionsByPeriod().length > 0 && (
+                      <button 
+                        className="btn-download-pdf"
+                        onClick={exportReportToPDF}
+                        title="Unduh laporan dalam format PDF"
+                      >
+                        📥 Unduh PDF
+                      </button>
+                    )}
                   </div>
                 </div>
 
