@@ -515,6 +515,319 @@ const HomePage = ({ onLogout }) => {
     return Object.values(days);
   };
 
+  // Fungsi untuk download receipt ke PDF
+  const downloadReceiptPDF = (transaction) => {
+    try {
+      const doc = new jsPDF('p', 'mm', [80, 200]); // Ukuran thermal receipt (80mm)
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let yPosition = 10;
+      const margin = 5;
+
+      // Header
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.text('MADURA MART', pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 8;
+
+      // Receipt Info
+      doc.setFontSize(8);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Receipt #${transaction.id}`, pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 4;
+      doc.text(`${transaction.date}`, pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 7;
+
+      // Separator line
+      doc.setDrawColor(0);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 5;
+
+      // Items header
+      doc.setFontSize(7);
+      doc.setFont(undefined, 'bold');
+      doc.text('Item', margin, yPosition);
+      doc.text('Qty', margin + 40, yPosition);
+      doc.text('Harga', pageWidth - margin - 2, yPosition, { align: 'right' });
+      yPosition += 3;
+
+      // Separator line sebelum items
+      doc.setDrawColor(150);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 4;
+
+      // Items
+      doc.setFontSize(7);
+      doc.setFont(undefined, 'normal');
+      transaction.items.forEach(item => {
+        const maxNameWidth = 30;
+        const itemName = item.name.length > maxNameWidth ? item.name.substring(0, maxNameWidth - 2) + '..' : item.name;
+        
+        // Nama produk (kiri)
+        doc.text(itemName, margin, yPosition);
+        
+        // Quantity (tengah) - centered
+        doc.text(`x${item.quantity}`, margin + 40, yPosition, { align: 'center' });
+        
+        // Harga (kanan) - right aligned
+        const priceStr = `Rp ${(item.price * item.quantity).toLocaleString('id-ID')}`;
+        doc.text(priceStr, pageWidth - margin - 2, yPosition, { align: 'right' });
+        
+        yPosition += 4;
+      });
+
+      // Separator line setelah items
+      yPosition += 1;
+      doc.setDrawColor(100);
+      doc.setLineDash([1, 1]);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      doc.setLineDash([]);
+      yPosition += 5;
+
+      // Summary
+      doc.setFontSize(8);
+      doc.setFont(undefined, 'normal');
+      
+      const subtotal = Math.round(transaction.total / 1.1);
+      const tax = Math.round(transaction.total * 0.1 / 1.1);
+      
+      doc.text('Subtotal:', margin, yPosition);
+      doc.text(`Rp ${subtotal.toLocaleString('id-ID')}`, pageWidth - margin - 2, yPosition, { align: 'right' });
+      yPosition += 4;
+      
+      doc.text('Pajak (10%):', margin, yPosition);
+      doc.text(`Rp ${tax.toLocaleString('id-ID')}`, pageWidth - margin - 2, yPosition, { align: 'right' });
+      yPosition += 4;
+
+      // Separator line
+      doc.setDrawColor(0);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 5;
+
+      // Total - dengan alignment konsisten
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.text('TOTAL:', margin, yPosition);
+      doc.text(`Rp ${transaction.total.toLocaleString('id-ID')}`, pageWidth - margin - 2, yPosition, { align: 'right' });
+      yPosition += 7;
+
+      // Payment Method
+      if (transaction.change > 0) {
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'normal');
+        doc.text('Kembalian:', margin, yPosition);
+        doc.text(`Rp ${transaction.change.toLocaleString('id-ID')}`, pageWidth - margin - 2, yPosition, { align: 'right' });
+        yPosition += 5;
+      }
+
+      // Payment method
+      yPosition += 3;
+      doc.setFontSize(8);
+      const methodLabel = {
+        'cash': 'Pembayaran: Tunai',
+        'transfer': 'Pembayaran: Transfer Bank',
+        'ewallet': 'Pembayaran: E-Wallet'
+      }[transaction.paymentMethod];
+      doc.text(methodLabel, pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 6;
+
+      // Separator line
+      doc.setDrawColor(100);
+      doc.setLineDash([1, 1]);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      doc.setLineDash([]);
+      yPosition += 6;
+
+      // Footer
+      doc.setFontSize(7);
+      doc.setFont(undefined, 'italic');
+      doc.text('Terima kasih atas pembelian Anda', pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 3;
+      doc.text('Madura Mart - Setiap Hari Melayani', pageWidth / 2, yPosition, { align: 'center' });
+
+      // Save PDF
+      doc.save(`Receipt_${transaction.id}.pdf`);
+    } catch (error) {
+      console.error('Error generating receipt PDF:', error);
+      alert('Gagal membuat PDF receipt. Error: ' + error.message);
+    }
+  };
+
+  // Fungsi untuk cetak receipt
+  const printReceipt = (transaction) => {
+    try {
+      const printWindow = window.open('', '_blank');
+      const subtotal = Math.round(transaction.total / 1.1);
+      const tax = Math.round(transaction.total * 0.1 / 1.1);
+
+      const itemsHTML = transaction.items.map(item => `
+        <tr>
+          <td>${item.name}</td>
+          <td style="text-align: center;">x${item.quantity}</td>
+          <td style="text-align: right;">Rp ${(item.price * item.quantity).toLocaleString('id-ID')}</td>
+        </tr>
+      `).join('');
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Receipt #${transaction.id}</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              width: 80mm;
+              margin: 0 auto;
+              padding: 10mm;
+              background: white;
+            }
+            .receipt-header {
+              text-align: center;
+              margin-bottom: 10mm;
+              border-bottom: 2px solid #000;
+              padding-bottom: 5mm;
+            }
+            .receipt-header h1 {
+              margin: 0;
+              font-size: 16px;
+              font-weight: bold;
+            }
+            .receipt-header p {
+              margin: 2px 0;
+              font-size: 10px;
+            }
+            .receipt-info {
+              font-size: 9px;
+              margin-bottom: 8mm;
+              border-bottom: 1px dashed #999;
+              padding-bottom: 5mm;
+            }
+            .receipt-info p {
+              margin: 2px 0;
+            }
+            .receipt-items {
+              margin: 5mm 0;
+              border-bottom: 1px solid #000;
+              padding-bottom: 5mm;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 9px;
+            }
+            table th {
+              border-bottom: 1px solid #000;
+              padding: 3px 0;
+              text-align: left;
+              font-weight: bold;
+            }
+            table td {
+              padding: 3px 2px;
+            }
+            .receipt-summary {
+              margin: 5mm 0;
+              font-size: 10px;
+              border-bottom: 1px solid #000;
+              padding-bottom: 5mm;
+            }
+            .summary-row {
+              display: flex;
+              justify-content: space-between;
+              margin: 3px 0;
+            }
+            .total-row {
+              font-weight: bold;
+              font-size: 12px;
+              margin-top: 5px;
+              display: flex;
+              justify-content: space-between;
+            }
+            .receipt-footer {
+              text-align: center;
+              font-size: 8px;
+              margin-top: 8mm;
+              color: #666;
+            }
+            @media print {
+              body {
+                margin: 0;
+                padding: 5mm;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="receipt-header">
+            <h1>MADURA MART</h1>
+            <p>Receipt #${transaction.id}</p>
+            <p>${transaction.date}</p>
+          </div>
+
+          <div class="receipt-info">
+            <p><strong>Metode Pembayaran:</strong></p>
+            <p>${
+              transaction.paymentMethod === 'cash' ? 'Tunai' :
+              transaction.paymentMethod === 'transfer' ? 'Transfer Bank' :
+              'E-Wallet'
+            }</p>
+          </div>
+
+          <div class="receipt-items">
+            <table>
+              <thead>
+                <tr>
+                  <th>Produk</th>
+                  <th style="text-align: center;">Qty</th>
+                  <th style="text-align: right;">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsHTML}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="receipt-summary">
+            <div class="summary-row">
+              <span>Subtotal:</span>
+              <span>Rp ${subtotal.toLocaleString('id-ID')}</span>
+            </div>
+            <div class="summary-row">
+              <span>Pajak (10%):</span>
+              <span>Rp ${tax.toLocaleString('id-ID')}</span>
+            </div>
+            <div class="total-row">
+              <span>TOTAL:</span>
+              <span>Rp ${transaction.total.toLocaleString('id-ID')}</span>
+            </div>
+            ${transaction.change > 0 ? `
+            <div class="summary-row" style="margin-top: 5px;">
+              <span>Kembalian:</span>
+              <span>Rp ${transaction.change.toLocaleString('id-ID')}</span>
+            </div>
+            ` : ''}
+          </div>
+
+          <div class="receipt-footer">
+            <p>Terima kasih atas pembelian Anda</p>
+            <p>Madura Mart - Setiap Hari Melayani</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      printWindow.document.write(html);
+      printWindow.document.close();
+      
+      // Tunggu sebentar sebelum print
+      setTimeout(() => {
+        printWindow.print();
+      }, 250);
+    } catch (error) {
+      console.error('Error printing receipt:', error);
+      alert('Gagal mencetak receipt. Error: ' + error.message);
+    }
+  };
+
   // Fungsi untuk export report ke PDF
   const exportReportToPDF = () => {
     try {
@@ -1302,13 +1615,31 @@ const HomePage = ({ onLogout }) => {
                 {selectedTransaction ? (
                   <div className="receipt-detail">
                     <div className="receipt-header">
-                      <h3>Receipt #{selectedTransaction.id}</h3>
-                      <button
-                        className="close-receipt"
-                        onClick={() => setSelectedTransaction(null)}
-                      >
-                        ✕
-                      </button>
+                      <div className="receipt-header-top">
+                        <h3>Receipt #{selectedTransaction.id}</h3>
+                        <button
+                          className="close-receipt"
+                          onClick={() => setSelectedTransaction(null)}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <div className="receipt-actions">
+                        <button
+                          className="receipt-btn download-btn"
+                          onClick={() => downloadReceiptPDF(selectedTransaction)}
+                          title="Download receipt sebagai PDF"
+                        >
+                          📥 Unduh
+                        </button>
+                        <button
+                          className="receipt-btn print-btn"
+                          onClick={() => printReceipt(selectedTransaction)}
+                          title="Cetak receipt"
+                        >
+                          🖨️ Cetak
+                        </button>
+                      </div>
                     </div>
 
                     <div className="receipt-content">
