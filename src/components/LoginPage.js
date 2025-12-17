@@ -1,33 +1,109 @@
 import React, { useState } from 'react';
+import { useOutlet } from '../context/OutletContext';
 import '../styles/Login.css';
 
 const LoginPage = ({ onLoginSuccess }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const { login, selectOutlet, userOutlets } = useOutlet();
+  const [email, setEmail] = useState('fikri@madura.com');
+  const [password, setPassword] = useState('fikri123');
   const [error, setError] = useState('');
+  const [step, setStep] = useState('login'); // 'login' atau 'outlet-selection'
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = (e) => {
     e.preventDefault();
-    
-    // Validasi input
-    if (!username || !password) {
-      setError('Username dan password harus diisi!');
-      return;
-    }
-    
-    // Reset error
     setError('');
-    
-    // Simulasi login
-    console.log('Login dengan:', { username, password });
-    
-    // Panggil callback untuk login success
-    onLoginSuccess();
-    
-    // Reset form
-    setUsername('');
-    setPassword('');
+    setIsLoading(true);
+
+    try {
+      const result = login(email, password);
+      
+      if (result.outlets.length === 1) {
+        // Langsung select outlet jika hanya 1
+        selectOutlet(result.outlets[0].id);
+        onLoginSuccess(result.user, result.outlets[0], result.outlets);
+      } else {
+        // Tampilkan pilihan outlet
+        setStep('outlet-selection');
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const handleOutletSelect = (outletId) => {
+    try {
+      selectOutlet(outletId);
+      const selectedOutlet = userOutlets.find(o => o.id === outletId);
+      onLoginSuccess({ email, name: email.split('@')[0] }, selectedOutlet, userOutlets);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  if (step === 'outlet-selection') {
+    return (
+      <div className="outlet-selection-page">
+        {/* Header */}
+        <div className="outlet-header">
+          <div className="outlet-header-content">
+            <h1 className="outlet-page-title">🏪 Pilih Outlet</h1>
+            <p className="outlet-page-subtitle">Anda memiliki akses ke {userOutlets.length} outlet</p>
+          </div>
+          <button
+            type="button"
+            className="back-btn-header"
+            onClick={() => {
+              setStep('login');
+              setError('');
+            }}
+          >
+            ← Kembali
+          </button>
+        </div>
+
+        {/* Main Content */}
+        <div className="outlet-selection-content">
+          <div className="outlets-container">
+            {userOutlets.length === 0 ? (
+              <div className="no-outlets">
+                <p>Anda tidak memiliki akses ke outlet apapun</p>
+              </div>
+            ) : (
+              <div className="outlets-grid-dashboard">
+                {userOutlets.map((outlet) => (
+                  <div
+                    key={outlet.id}
+                    className="outlet-card-dashboard"
+                    onClick={() => handleOutletSelect(outlet.id)}
+                  >
+                    <div className="outlet-card-top">
+                      <div className="outlet-icon-large">🏪</div>
+                      <div className="outlet-status-badge">Aktif</div>
+                    </div>
+
+                    <div className="outlet-card-info">
+                      <h2>{outlet.name}</h2>
+                      <p className="outlet-address-dashboard">📍 {outlet.address}</p>
+                      <div className="outlet-id-badge">ID: {outlet.id}</div>
+                    </div>
+
+                    <div className="outlet-card-footer">
+                      <button type="button" className="select-outlet-btn">
+                        Masuk Outlet →
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="login-container">
@@ -48,18 +124,19 @@ const LoginPage = ({ onLoginSuccess }) => {
             {/* Error Message */}
             {error && <div className="error-message">{error}</div>}
 
-            {/* Username Input */}
+            {/* Email Input */}
             <div className="form-group">
-              <label htmlFor="username" className="form-label">
-                Username
+              <label htmlFor="email" className="form-label">
+                Email
               </label>
               <input
-                type="text"
-                id="username"
+                type="email"
+                id="email"
                 className="form-input"
-                placeholder="Masukkan username Anda"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Masukkan email Anda"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
               />
             </div>
 
@@ -75,19 +152,43 @@ const LoginPage = ({ onLoginSuccess }) => {
                 placeholder="Masukkan password Anda"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                required
               />
             </div>
 
             {/* Login Button */}
-            <button type="submit" className="login-button">
-              Login
+            <button type="submit" className="login-button" disabled={isLoading}>
+              {isLoading ? 'Masuk...' : 'Masuk'}
             </button>
           </form>
 
-          {/* Footer Text */}
-          <p className="login-footer">
-            Belum memiliki akun? <a href="#signup">Daftar di sini</a>
-          </p>
+          {/* Demo Users */}
+          <div className="demo-users" style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #eee' }}>
+            <p style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>👤 Demo Accounts:</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => { setEmail('fikri@madura.com'); setPassword('fikri123'); }}
+                style={{ padding: '8px', fontSize: '11px', cursor: 'pointer', border: '1px solid #ddd', borderRadius: '4px', background: '#f5f5f5' }}
+              >
+                👑 Owner
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEmail('admin@outlet1.com'); setPassword('admin123'); }}
+                style={{ padding: '8px', fontSize: '11px', cursor: 'pointer', border: '1px solid #ddd', borderRadius: '4px', background: '#f5f5f5' }}
+              >
+                🔐 Admin
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEmail('cashier@outlet1.com'); setPassword('cashier123'); }}
+                style={{ padding: '8px', fontSize: '11px', cursor: 'pointer', border: '1px solid #ddd', borderRadius: '4px', background: '#f5f5f5', gridColumn: '1 / -1' }}
+              >
+                💳 Cashier
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -101,7 +202,7 @@ const LoginPage = ({ onLoginSuccess }) => {
           />
           <div className="image-overlay">
             <h2>Madura Mart</h2>
-            <p>Belanja mudah, harga terjangkau, kualitas terjamin</p>
+            <p>Sistem POS Multi-Outlet</p>
           </div>
         </div>
       </div>

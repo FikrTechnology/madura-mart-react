@@ -5,8 +5,11 @@ import ProductCard from './ProductCard';
 import Cart from './Cart';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { useOutlet } from '../context/OutletContext';
 
-const HomePage = ({ onLogout }) => {
+const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProducts: setPropsProducts }) => {
+  const outlet = useOutlet();
+  const outletId = currentOutlet?.id || 'outlet_001'; // fallback jika context belum ready
   const [activeMenu, setActiveMenu] = useState('home');
   const [cartItems, setCartItems] = useState([]);
   const [showCart, setShowCart] = useState(false);
@@ -33,6 +36,9 @@ const HomePage = ({ onLogout }) => {
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
   const [currentDate, setCurrentDate] = useState(new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
 
+  // Gunakan products dari props jika ada, atau gunakan default state
+  const [products, setProducts] = useState(propsProducts || [])
+
   // Kategori yang tersedia
   const categories = [
     'Semua',
@@ -44,73 +50,12 @@ const HomePage = ({ onLogout }) => {
     'Lain-lain'
   ];
 
-  // Sample data produk dengan stok
-  const [products] = useState([
-    {
-      id: 1,
-      name: 'Beras Premium 5kg',
-      price: 75000,
-      category: 'Kebutuhan Dapur',
-      image: 'https://images.unsplash.com/photo-1586857529235-ea4a90b1e595?w=300&h=300&fit=crop',
-      stock: 25
-    },
-    {
-      id: 2,
-      name: 'Minyak Goreng 2L',
-      price: 28000,
-      category: 'Kebutuhan Dapur',
-      image: 'https://images.unsplash.com/photo-1587291352341-ccb540eae75f?w=300&h=300&fit=crop',
-      stock: 0
-    },
-    {
-      id: 3,
-      name: 'Gula Putih 1kg',
-      price: 12000,
-      category: 'Kebutuhan Dapur',
-      image: 'https://images.unsplash.com/photo-1599599810694-b308981df39e?w=300&h=300&fit=crop',
-      stock: 5
-    },
-    {
-      id: 4,
-      name: 'Telur Ayam 1 Kg',
-      price: 32000,
-      category: 'Makanan',
-      image: 'https://images.unsplash.com/photo-1582722921519-94d3dba35522?w=300&h=300&fit=crop',
-      stock: 15
-    },
-    {
-      id: 5,
-      name: 'Susu UHT 1L',
-      price: 15000,
-      category: 'Minuman',
-      image: 'https://images.unsplash.com/photo-1553531088-89dbbf58d9d1?w=300&h=300&fit=crop',
-      stock: 0
-    },
-    {
-      id: 6,
-      name: 'Tepung Terigu 1kg',
-      price: 10000,
-      category: 'Kebutuhan Dapur',
-      image: 'https://images.unsplash.com/photo-1585707372641-92b5e5e36cce?w=300&h=300&fit=crop',
-      stock: 32
-    },
-    {
-      id: 7,
-      name: 'Garam Dapur 500g',
-      price: 5000,
-      category: 'Kebutuhan Dapur',
-      image: 'https://images.unsplash.com/photo-1599599810771-f2b6b6c9f0f5?w=300&h=300&fit=crop',
-      stock: 50
-    },
-    {
-      id: 8,
-      name: 'Kopi Arabika 500g',
-      price: 85000,
-      category: 'Minuman',
-      image: 'https://images.unsplash.com/photo-1559056199-641a0ac8b3f4?w=300&h=300&fit=crop',
-      stock: 8
+  // Sinkronisasi dengan products dari props
+  useEffect(() => {
+    if (propsProducts) {
+      setProducts(propsProducts);
     }
-  ]);
+  }, [propsProducts]);
 
   // useEffect untuk update waktu setiap detik
   useEffect(() => {
@@ -125,7 +70,7 @@ const HomePage = ({ onLogout }) => {
 
   // Filter dan sort produk
   const getFilteredProducts = () => {
-    let filtered = products;
+    let filtered = products.filter(p => p.outlet_id === outletId); // ← FILTER PER OUTLET
 
     // Filter berdasarkan kategori
     if (selectedCategory !== 'Semua') {
@@ -251,8 +196,29 @@ const HomePage = ({ onLogout }) => {
 
   const handlePaymentComplete = () => {
     const total = Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1);
+    
+    // Update stok produk
+    const updatedProducts = products.map(product => {
+      const cartItem = cartItems.find(item => item.id === product.id);
+      if (cartItem) {
+        return {
+          ...product,
+          stock: Math.max(0, product.stock - cartItem.quantity)
+        };
+      }
+      return product;
+    });
+    
+    setProducts(updatedProducts);
+    
+    // Sinkronisasi dengan App.js state
+    if (setPropsProducts) {
+      setPropsProducts(updatedProducts);
+    }
+    
     const newTransaction = {
       id: Date.now(),
+      outlet_id: outletId,
       items: cartItems,
       total: total,
       paymentMethod: paymentMethod,
