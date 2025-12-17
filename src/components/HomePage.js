@@ -23,6 +23,9 @@ const HomePage = ({ onLogout }) => {
   const [historySearchQuery, setHistorySearchQuery] = useState('');
   const [historyFilterMethod, setHistoryFilterMethod] = useState('all');
   const [historySortBy, setHistorySortBy] = useState('newest');
+  
+  // Home & Report states
+  const [reportTimePeriod, setReportTimePeriod] = useState('all');
 
   // Kategori yang tersedia
   const categories = [
@@ -316,6 +319,62 @@ const HomePage = ({ onLogout }) => {
     return breakdown;
   };
 
+  // Fungsi untuk get recent transactions
+  const getRecentTransactions = () => {
+    return [...transactions]
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, 5);
+  };
+
+  // Fungsi untuk get greeting message
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Selamat Pagi';
+    if (hour < 17) return 'Selamat Siang';
+    return 'Selamat Malam';
+  };
+
+  // Fungsi untuk format waktu
+  const getCurrentTime = () => {
+    return new Date().toLocaleTimeString('id-ID', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  };
+
+  const getCurrentDate = () => {
+    return new Date().toLocaleDateString('id-ID', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  // Fungsi untuk filter transactions berdasarkan time period
+  const getFilteredTransactionsByPeriod = () => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    return transactions.filter(t => {
+      const txDate = new Date(t.date);
+      const txDateOnly = new Date(txDate.getFullYear(), txDate.getMonth(), txDate.getDate());
+      
+      if (reportTimePeriod === 'today') {
+        return txDateOnly.getTime() === today.getTime();
+      } else if (reportTimePeriod === 'week') {
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        return txDateOnly.getTime() >= weekAgo.getTime();
+      } else if (reportTimePeriod === 'month') {
+        const monthAgo = new Date(today);
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        return txDateOnly.getTime() >= monthAgo.getTime();
+      }
+      return true; // all
+    });
+  };
+
   return (
     <div className="home-container">
       {/* Sidebar Navigation */}
@@ -327,10 +386,93 @@ const HomePage = ({ onLogout }) => {
         <div className="home-content">
           {/* Home Section - Empty Placeholder */}
           {activeMenu === 'home' && (
-            <div className="content-section">
-              <div className="content-placeholder">
-                <h2>Selamat Datang</h2>
-                <p>Pilih Menu di sebelah kiri untuk memulai transaksi</p>
+            <div className="home-dashboard">
+              {/* Welcome Section */}
+              <div className="welcome-section">
+                <div className="welcome-header">
+                  <div className="welcome-text">
+                    <h1>{getGreeting()}, Kasir! 👋</h1>
+                    <p className="welcome-subtitle">Selamat datang di Madura Mart POS System</p>
+                  </div>
+                  <div className="welcome-time">
+                    <div className="time-display">{getCurrentTime()}</div>
+                    <div className="date-display">{getCurrentDate()}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Action Buttons */}
+              <div className="quick-actions">
+                <h3>Aksi Cepat</h3>
+                <div className="actions-grid">
+                  <button 
+                    className="action-btn start-transaction"
+                    onClick={() => setActiveMenu('menu')}
+                  >
+                    <span className="btn-icon">🛒</span>
+                    <span className="btn-label">Mulai Transaksi</span>
+                    <span className="btn-arrow">→</span>
+                  </button>
+                  <button 
+                    className="action-btn view-history"
+                    onClick={() => setActiveMenu('history')}
+                  >
+                    <span className="btn-icon">📜</span>
+                    <span className="btn-label">Lihat Riwayat</span>
+                    <span className="btn-arrow">→</span>
+                  </button>
+                  <button 
+                    className="action-btn view-report"
+                    onClick={() => setActiveMenu('report')}
+                  >
+                    <span className="btn-icon">📊</span>
+                    <span className="btn-label">Laporan Penjualan</span>
+                    <span className="btn-arrow">→</span>
+                  </button>
+                  <button 
+                    className="action-btn logout-btn"
+                    onClick={handleLogoutClick}
+                  >
+                    <span className="btn-icon">🚪</span>
+                    <span className="btn-label">Keluar</span>
+                    <span className="btn-arrow">→</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Tips & Info */}
+              <div className="tips-section">
+                <h3>💡 Tips Penggunaan</h3>
+                <div className="tips-grid">
+                  <div className="tip-card">
+                    <div className="tip-number">1</div>
+                    <div className="tip-content">
+                      <p className="tip-title">Mulai Transaksi</p>
+                      <p className="tip-desc">Klik "Mulai Transaksi" atau pilih menu di sidebar untuk membuka daftar produk</p>
+                    </div>
+                  </div>
+                  <div className="tip-card">
+                    <div className="tip-number">2</div>
+                    <div className="tip-content">
+                      <p className="tip-title">Pilih Produk</p>
+                      <p className="tip-desc">Cari produk menggunakan search bar, filter kategori, atau urutkan sesuai kebutuhan</p>
+                    </div>
+                  </div>
+                  <div className="tip-card">
+                    <div className="tip-number">3</div>
+                    <div className="tip-content">
+                      <p className="tip-title">Selesaikan Pembayaran</p>
+                      <p className="tip-desc">Pilih metode pembayaran (Tunai, Transfer, atau E-Wallet) dan selesaikan transaksi</p>
+                    </div>
+                  </div>
+                  <div className="tip-card">
+                    <div className="tip-number">4</div>
+                    <div className="tip-content">
+                      <p className="tip-title">Lihat Laporan</p>
+                      <p className="tip-desc">Pantau performa penjualan di menu Laporan dengan berbagai statistik detail</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -737,11 +879,25 @@ const HomePage = ({ onLogout }) => {
             <div className="report-section">
               <div className="report-container">
                 <div className="report-header">
-                  <h2>Laporan Penjualan</h2>
-                  <p className="report-subtitle">Ringkasan performa penjualan Anda</p>
+                  <div className="report-header-left">
+                    <h2>Laporan Penjualan</h2>
+                    <p className="report-subtitle">Ringkasan performa penjualan Anda</p>
+                  </div>
+                  <div className="report-filters">
+                    <select 
+                      value={reportTimePeriod}
+                      onChange={(e) => setReportTimePeriod(e.target.value)}
+                      className="period-select"
+                    >
+                      <option value="today">Hari Ini</option>
+                      <option value="week">7 Hari Terakhir</option>
+                      <option value="month">30 Hari Terakhir</option>
+                      <option value="all">Semua Waktu</option>
+                    </select>
+                  </div>
                 </div>
 
-                {transactions.length === 0 ? (
+                {getFilteredTransactionsByPeriod().length === 0 ? (
                   <div className="empty-report">
                     <h3>Belum ada data transaksi</h3>
                     <p>Mulai melakukan transaksi untuk melihat laporan penjualan</p>
@@ -754,7 +910,10 @@ const HomePage = ({ onLogout }) => {
                         <div className="card-icon">💰</div>
                         <div className="card-content">
                           <p className="card-label">Total Penjualan</p>
-                          <p className="card-value">Rp {calculateSalesStats().totalSales.toLocaleString('id-ID')}</p>
+                          <p className="card-value">Rp {(() => {
+                            const total = getFilteredTransactionsByPeriod().reduce((sum, t) => sum + t.total, 0);
+                            return total.toLocaleString('id-ID');
+                          })()}</p>
                         </div>
                       </div>
 
@@ -762,7 +921,7 @@ const HomePage = ({ onLogout }) => {
                         <div className="card-icon">📦</div>
                         <div className="card-content">
                           <p className="card-label">Total Transaksi</p>
-                          <p className="card-value">{calculateSalesStats().totalTransactions}</p>
+                          <p className="card-value">{getFilteredTransactionsByPeriod().length}</p>
                         </div>
                       </div>
 
@@ -770,7 +929,10 @@ const HomePage = ({ onLogout }) => {
                         <div className="card-icon">📊</div>
                         <div className="card-content">
                           <p className="card-label">Total Produk Terjual</p>
-                          <p className="card-value">{calculateSalesStats().totalItems} items</p>
+                          <p className="card-value">{(() => {
+                            const total = getFilteredTransactionsByPeriod().reduce((sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
+                            return total + ' items';
+                          })()}</p>
                         </div>
                       </div>
 
@@ -778,8 +940,62 @@ const HomePage = ({ onLogout }) => {
                         <div className="card-icon">📈</div>
                         <div className="card-content">
                           <p className="card-label">Rata-rata Transaksi</p>
-                          <p className="card-value">Rp {calculateSalesStats().averageTransaction.toLocaleString('id-ID')}</p>
+                          <p className="card-value">Rp {(() => {
+                            const filtered = getFilteredTransactionsByPeriod();
+                            const total = filtered.reduce((sum, t) => sum + t.total, 0);
+                            const avg = filtered.length > 0 ? Math.round(total / filtered.length) : 0;
+                            return avg.toLocaleString('id-ID');
+                          })()}</p>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Additional Analytics */}
+                    <div className="report-analytics-grid">
+                      {/* Highest Transaction */}
+                      <div className="analytics-card">
+                        <h4>🎯 Transaksi Tertinggi</h4>
+                        <p className="analytics-value">Rp {(() => {
+                          const max = Math.max(...getFilteredTransactionsByPeriod().map(t => t.total), 0);
+                          return max.toLocaleString('id-ID');
+                        })()}</p>
+                        <p className="analytics-desc">Nilai transaksi terbesar dalam periode ini</p>
+                      </div>
+
+                      {/* Lowest Transaction */}
+                      <div className="analytics-card">
+                        <h4>📉 Transaksi Terendah</h4>
+                        <p className="analytics-value">Rp {(() => {
+                          const filtered = getFilteredTransactionsByPeriod();
+                          const min = filtered.length > 0 ? Math.min(...filtered.map(t => t.total)) : 0;
+                          return min.toLocaleString('id-ID');
+                        })()}</p>
+                        <p className="analytics-desc">Nilai transaksi terkecil dalam periode ini</p>
+                      </div>
+
+                      {/* Most Used Payment */}
+                      <div className="analytics-card">
+                        <h4>💳 Metode Pembayaran Utama</h4>
+                        <p className="analytics-value">{(() => {
+                          const filtered = getFilteredTransactionsByPeriod();
+                          const breakdown = {cash: 0, transfer: 0, ewallet: 0};
+                          filtered.forEach(t => breakdown[t.paymentMethod]++);
+                          const max = Math.max(breakdown.cash, breakdown.transfer, breakdown.ewallet);
+                          return breakdown.cash === max ? '💵 Tunai' : breakdown.transfer === max ? '🏦 Transfer' : '📱 E-Wallet';
+                        })()}</p>
+                        <p className="analytics-desc">Metode pembayaran paling sering digunakan</p>
+                      </div>
+
+                      {/* Average Items per Transaction */}
+                      <div className="analytics-card">
+                        <h4>📦 Rata-rata Item/Transaksi</h4>
+                        <p className="analytics-value">{(() => {
+                          const filtered = getFilteredTransactionsByPeriod();
+                          const total = filtered.reduce((sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
+                          const avg = filtered.length > 0 ? (total / filtered.length).toFixed(1) : 0;
+                          return avg;
+                        })()}</p>
+                        <p className="analytics-desc">Rata-rata jumlah produk per transaksi</p>
                       </div>
                     </div>
 
@@ -789,7 +1005,15 @@ const HomePage = ({ onLogout }) => {
                         <h3>Metode Pembayaran</h3>
                         <div className="payment-stats">
                           {(() => {
-                            const breakdown = getPaymentMethodBreakdown();
+                            const filtered = getFilteredTransactionsByPeriod();
+                            const breakdown = {cash: {count: 0, total: 0}, transfer: {count: 0, total: 0}, ewallet: {count: 0, total: 0}};
+                            filtered.forEach(t => {
+                              const method = t.paymentMethod;
+                              if (breakdown[method]) {
+                                breakdown[method].count += 1;
+                                breakdown[method].total += t.total;
+                              }
+                            });
                             return (
                               <>
                                 <div className="payment-row">
@@ -840,18 +1064,39 @@ const HomePage = ({ onLogout }) => {
                             <div className="col-qty">Terjual</div>
                             <div className="col-revenue">Revenue</div>
                           </div>
-                          {getTopProducts().length === 0 ? (
-                            <p className="no-data">Belum ada data produk</p>
-                          ) : (
-                            getTopProducts().map((product, index) => (
-                              <div key={product.id} className="table-row">
-                                <div className="col-no">{index + 1}</div>
-                                <div className="col-name">{product.name}</div>
-                                <div className="col-qty">{product.quantity}</div>
-                                <div className="col-revenue">Rp {product.revenue.toLocaleString('id-ID')}</div>
-                              </div>
-                            ))
-                          )}
+                          {(() => {
+                            const filtered = getFilteredTransactionsByPeriod();
+                            const productSales = {};
+                            filtered.forEach(transaction => {
+                              transaction.items.forEach(item => {
+                                if (!productSales[item.id]) {
+                                  productSales[item.id] = {
+                                    id: item.id,
+                                    name: item.name,
+                                    quantity: 0,
+                                    revenue: 0
+                                  };
+                                }
+                                productSales[item.id].quantity += item.quantity;
+                                productSales[item.id].revenue += item.price * item.quantity;
+                              });
+                            });
+                            const topProducts = Object.values(productSales)
+                              .sort((a, b) => b.quantity - a.quantity)
+                              .slice(0, 5);
+                            return topProducts.length === 0 ? (
+                              <p className="no-data">Belum ada data produk</p>
+                            ) : (
+                              topProducts.map((product, index) => (
+                                <div key={product.id} className="table-row">
+                                  <div className="col-no">{index + 1}</div>
+                                  <div className="col-name">{product.name}</div>
+                                  <div className="col-qty">{product.quantity}</div>
+                                  <div className="col-revenue">Rp {product.revenue.toLocaleString('id-ID')}</div>
+                                </div>
+                              ))
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -860,27 +1105,86 @@ const HomePage = ({ onLogout }) => {
                     <div className="report-card category-performance">
                       <h3>Performa Kategori</h3>
                       <div className="category-stats">
-                        {getCategoryPerformance().length === 0 ? (
-                          <p className="no-data">Belum ada data kategori</p>
-                        ) : (
-                          getCategoryPerformance().map((cat) => {
-                            const maxRevenue = Math.max(...getCategoryPerformance().map(c => c.revenue));
-                            const percentage = (cat.revenue / maxRevenue) * 100;
-                            return (
-                              <div key={cat.category} className="category-row">
-                                <div className="category-info">
-                                  <p className="category-name">{cat.category}</p>
-                                  <p className="category-detail">{cat.quantity} items • Rp {cat.revenue.toLocaleString('id-ID')}</p>
+                        {(() => {
+                          const filtered = getFilteredTransactionsByPeriod();
+                          const categoryStats = {};
+                          products.forEach(product => {
+                            if (!categoryStats[product.category]) {
+                              categoryStats[product.category] = {
+                                category: product.category,
+                                quantity: 0,
+                                revenue: 0
+                              };
+                            }
+                          });
+                          filtered.forEach(transaction => {
+                            transaction.items.forEach(item => {
+                              const product = products.find(p => p.id === item.id);
+                              if (product && categoryStats[product.category]) {
+                                categoryStats[product.category].quantity += item.quantity;
+                                categoryStats[product.category].revenue += item.price * item.quantity;
+                              }
+                            });
+                          });
+                          const categoryPerf = Object.values(categoryStats)
+                            .sort((a, b) => b.revenue - a.revenue)
+                            .filter(cat => cat.revenue > 0);
+                          return categoryPerf.length === 0 ? (
+                            <p className="no-data">Belum ada data kategori</p>
+                          ) : (
+                            categoryPerf.map((cat) => {
+                              const maxRevenue = Math.max(...categoryPerf.map(c => c.revenue));
+                              const percentage = (cat.revenue / maxRevenue) * 100;
+                              return (
+                                <div key={cat.category} className="category-row">
+                                  <div className="category-info">
+                                    <p className="category-name">{cat.category}</p>
+                                    <p className="category-detail">{cat.quantity} items • Rp {cat.revenue.toLocaleString('id-ID')}</p>
+                                  </div>
+                                  <div className="progress-bar">
+                                    <div className="progress-fill" style={{ width: `${percentage}%` }}></div>
+                                  </div>
                                 </div>
-                                <div className="progress-bar">
-                                  <div className="progress-fill" style={{ width: `${percentage}%` }}></div>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
+                              );
+                            })
+                          );
+                        })()}
                       </div>
                     </div>
+
+                    {/* Recent Transactions */}
+                    {getFilteredTransactionsByPeriod().length > 0 && (
+                      <div className="report-card recent-transactions-report">
+                        <h3>Transaksi Terbaru</h3>
+                        <div className="recent-list">
+                          {getFilteredTransactionsByPeriod().slice(0, 5).map((transaction, index) => (
+                            <div 
+                              key={transaction.id} 
+                              className="recent-item"
+                              onClick={() => {
+                                setSelectedTransaction(transaction);
+                                setActiveMenu('history');
+                              }}
+                            >
+                              <div className="recent-number">{index + 1}</div>
+                              <div className="recent-icon">
+                                {transaction.paymentMethod === 'cash' ? '💵' : transaction.paymentMethod === 'transfer' ? '🏦' : '📱'}
+                              </div>
+                              <div className="recent-info">
+                                <div className="recent-method">
+                                  {transaction.paymentMethod === 'cash' ? 'Tunai' : transaction.paymentMethod === 'transfer' ? 'Transfer' : 'E-Wallet'}
+                                </div>
+                                <div className="recent-time">{transaction.date}</div>
+                              </div>
+                              <div className="recent-amount">
+                                Rp {transaction.total.toLocaleString('id-ID')}
+                              </div>
+                              <div className="recent-arrow">→</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
