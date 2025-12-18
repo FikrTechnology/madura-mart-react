@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useOutlet } from '../context/OutletContext';
 import '../styles/Login.css';
 
@@ -7,8 +7,45 @@ const LoginPage = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState('fikri@madura.com');
   const [password, setPassword] = useState('fikri123');
   const [error, setError] = useState('');
-  const [step, setStep] = useState('login'); // 'login' atau 'outlet-selection'
   const [isLoading, setIsLoading] = useState(false);
+  const [demoAccounts, setDemoAccounts] = useState([
+    { label: '👑 Owner', email: 'fikri@madura.com', password: 'fikri123' },
+    { label: '🔐 Admin', email: 'admin@outlet1.com', password: 'admin123' },
+    { label: '💳 Cashier', email: 'cashier@outlet1.com', password: 'cashier123' }
+  ]);
+
+  // Load dynamic demo accounts from localStorage
+  useEffect(() => {
+    const employees = JSON.parse(localStorage.getItem('madura_employees') || '[]');
+    if (employees.length > 0) {
+      // Get first admin if exists
+      const adminEmployee = employees.find(e => e.role === 'admin' && (e.status || 'active') === 'active');
+      // Get first cashier if exists
+      const cashierEmployee = employees.find(e => e.role === 'cashier' && (e.status || 'active') === 'active');
+      
+      const newDemoAccounts = [
+        { label: '👑 Owner', email: 'fikri@madura.com', password: 'fikri123' }
+      ];
+      
+      if (adminEmployee) {
+        newDemoAccounts.push({ 
+          label: `🔐 Admin (${adminEmployee.name})`, 
+          email: adminEmployee.email, 
+          password: adminEmployee.password 
+        });
+      }
+      
+      if (cashierEmployee) {
+        newDemoAccounts.push({ 
+          label: `💳 Cashier (${cashierEmployee.name})`, 
+          email: cashierEmployee.email, 
+          password: cashierEmployee.password 
+        });
+      }
+      
+      setDemoAccounts(newDemoAccounts);
+    }
+  }, []);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -18,14 +55,9 @@ const LoginPage = ({ onLoginSuccess }) => {
     try {
       const result = login(email, password);
       
-      if (result.outlets.length === 1) {
-        // Langsung select outlet jika hanya 1
-        selectOutlet(result.outlets[0].id);
-        onLoginSuccess(result.user, result.outlets[0], result.outlets);
-      } else {
-        // Tampilkan pilihan outlet
-        setStep('outlet-selection');
-      }
+      // Langsung select outlet pertama tanpa tampil pilihan
+      selectOutlet(result.outlets[0].id);
+      onLoginSuccess(result.user, result.outlets[0], result.outlets);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -42,68 +74,6 @@ const LoginPage = ({ onLoginSuccess }) => {
       setError(err.message);
     }
   };
-
-  if (step === 'outlet-selection') {
-    return (
-      <div className="outlet-selection-page">
-        {/* Header */}
-        <div className="outlet-header">
-          <div className="outlet-header-content">
-            <h1 className="outlet-page-title">🏪 Pilih Outlet</h1>
-            <p className="outlet-page-subtitle">Anda memiliki akses ke {userOutlets.length} outlet</p>
-          </div>
-          <button
-            type="button"
-            className="back-btn-header"
-            onClick={() => {
-              setStep('login');
-              setError('');
-            }}
-          >
-            ← Kembali
-          </button>
-        </div>
-
-        {/* Main Content */}
-        <div className="outlet-selection-content">
-          <div className="outlets-container">
-            {userOutlets.length === 0 ? (
-              <div className="no-outlets">
-                <p>Anda tidak memiliki akses ke outlet apapun</p>
-              </div>
-            ) : (
-              <div className="outlets-grid-dashboard">
-                {userOutlets.map((outlet) => (
-                  <div
-                    key={outlet.id}
-                    className="outlet-card-dashboard"
-                    onClick={() => handleOutletSelect(outlet.id)}
-                  >
-                    <div className="outlet-card-top">
-                      <div className="outlet-icon-large">🏪</div>
-                      <div className="outlet-status-badge">Aktif</div>
-                    </div>
-
-                    <div className="outlet-card-info">
-                      <h2>{outlet.name}</h2>
-                      <p className="outlet-address-dashboard">📍 {outlet.address}</p>
-                      <div className="outlet-id-badge">ID: {outlet.id}</div>
-                    </div>
-
-                    <div className="outlet-card-footer">
-                      <button type="button" className="select-outlet-btn">
-                        Masuk Outlet →
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="login-container">
@@ -166,27 +136,24 @@ const LoginPage = ({ onLoginSuccess }) => {
           <div className="demo-users" style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #eee' }}>
             <p style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>👤 Demo Accounts:</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              <button
-                type="button"
-                onClick={() => { setEmail('fikri@madura.com'); setPassword('fikri123'); }}
-                style={{ padding: '8px', fontSize: '11px', cursor: 'pointer', border: '1px solid #ddd', borderRadius: '4px', background: '#f5f5f5' }}
-              >
-                👑 Owner
-              </button>
-              <button
-                type="button"
-                onClick={() => { setEmail('admin@outlet1.com'); setPassword('admin123'); }}
-                style={{ padding: '8px', fontSize: '11px', cursor: 'pointer', border: '1px solid #ddd', borderRadius: '4px', background: '#f5f5f5' }}
-              >
-                🔐 Admin
-              </button>
-              <button
-                type="button"
-                onClick={() => { setEmail('cashier@outlet1.com'); setPassword('cashier123'); }}
-                style={{ padding: '8px', fontSize: '11px', cursor: 'pointer', border: '1px solid #ddd', borderRadius: '4px', background: '#f5f5f5', gridColumn: '1 / -1' }}
-              >
-                💳 Cashier
-              </button>
+              {demoAccounts.map((account, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => { setEmail(account.email); setPassword(account.password); }}
+                  style={{ 
+                    padding: '8px', 
+                    fontSize: '11px', 
+                    cursor: 'pointer', 
+                    border: '1px solid #ddd', 
+                    borderRadius: '4px', 
+                    background: '#f5f5f5',
+                    gridColumn: account.label.includes('Admin') && demoAccounts.length === 3 ? undefined : (account.label.includes('Cashier') ? '1 / -1' : undefined)
+                  }}
+                >
+                  {account.label}
+                </button>
+              ))}
             </div>
           </div>
         </div>

@@ -72,18 +72,42 @@ export const OutletProvider = ({ children }) => {
   ];
 
   const login = (email, password) => {
-    // Cari user dengan email dan password
-    const user = mockUsers.find(u => u.email === email && u.password === password);
+    // First try to find user in mockUsers (owner/default users)
+    let user = mockUsers.find(u => u.email === email && u.password === password);
+    
+    // If not found in mock, check localStorage for dynamically created employees
+    if (!user) {
+      const employees = JSON.parse(localStorage.getItem('madura_employees') || '[]');
+      const employee = employees.find(e => e.email === email && e.password === password && (e.status || 'active') === 'active');
+      
+      if (employee) {
+        // Create user object from employee
+        user = {
+          id: employee.id,
+          email: employee.email,
+          password: employee.password,
+          name: employee.name,
+          role: employee.role,
+          outlets: employee.outlet_ids || [employee.outlet_id]
+        };
+      }
+    }
     
     if (!user) {
       throw new Error('Email atau password salah');
     }
 
-    // Ambil outlets yang accessible oleh user
-    const outlets = mockOutlets.filter(o => user.outlets.includes(o.id));
+    // Get outlets from localStorage first, fallback to mockOutlets
+    const storedOutlets = JSON.parse(localStorage.getItem('madura_outlets') || '[]');
+    const allOutlets = storedOutlets.length > 0 ? storedOutlets : mockOutlets;
+    
+    // Ambil outlets yang accessible oleh user (filter only active outlets)
+    const outlets = allOutlets.filter(o => 
+      user.outlets.includes(o.id) && (o.status || 'active') === 'active'
+    );
     
     if (outlets.length === 0) {
-      throw new Error('User tidak memiliki akses ke outlet manapun');
+      throw new Error('User tidak memiliki akses ke outlet aktif manapun');
     }
 
     setCurrentUser({

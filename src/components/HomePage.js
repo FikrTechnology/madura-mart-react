@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import '../styles/Home.css';
 import Sidebar from './Sidebar';
 import ProductCard from './ProductCard';
 import Cart from './Cart';
+import AlertModal from './AlertModal';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { useOutlet } from '../context/OutletContext';
 
-const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProducts: setPropsProducts }) => {
+const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProducts: setPropsProducts, transactions: propsTransactions, setTransactions: setPropsTransactions }) => {
+  const [modal, setModal] = useState({ isOpen: false, type: 'info', title: '', message: '', actions: [] });
+  const [logoutModal, setLogoutModal] = useState(false);
   const outlet = useOutlet();
   const outletId = currentOutlet?.id || 'outlet_001'; // fallback jika context belum ready
   const [activeMenu, setActiveMenu] = useState('home');
@@ -21,7 +24,7 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [amountPaid, setAmountPaid] = useState('');
   const [showQRIS, setShowQRIS] = useState(false);
-  const [transactions, setTransactions] = useState([]);
+  const [transactions, setTransactions] = useState(propsTransactions || []);
   
   // History page states
   const [selectedTransaction, setSelectedTransaction] = useState(null);
@@ -36,8 +39,8 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
   const [currentDate, setCurrentDate] = useState(new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
 
-  // Gunakan products dari props jika ada, atau gunakan default state
-  const [products, setProducts] = useState(propsProducts || [])
+  // Gunakan products dari props
+  const [products, setProducts] = useState(propsProducts || []);
 
   // Kategori yang tersedia
   const categories = [
@@ -50,12 +53,19 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
     'Lain-lain'
   ];
 
-  // Sinkronisasi dengan products dari props
+  // Sinkronisasi products dari props - static display sesuai admin input
   useEffect(() => {
-    if (propsProducts) {
+    if (propsProducts && propsProducts.length > 0) {
       setProducts(propsProducts);
     }
   }, [propsProducts]);
+
+  // Sinkronisasi transactions dari props - untuk history page di HomePage
+  useEffect(() => {
+    if (propsTransactions && propsTransactions.length > 0) {
+      setTransactions(propsTransactions);
+    }
+  }, [propsTransactions]);
 
   // useEffect untuk update waktu setiap detik
   useEffect(() => {
@@ -125,18 +135,34 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
   };
 
   const handleAddToCart = (product) => {
+    // Get stock dari propsProducts (stok real)
+    const propsProduct = propsProducts?.find(p => p.id === product.id);
+    const actualStock = propsProduct?.stock || 0;
+
     // Cek apakah stok tersedia
-    if (product.stock <= 0) {
-      alert('Maaf, produk ini sedang habis.');
+    if (actualStock <= 0) {
+      setModal({
+        isOpen: true,
+        type: 'warning',
+        title: 'Stok Habis',
+        message: 'Maaf, produk ini sedang habis.',
+        actions: [{ label: 'OK', type: 'primary' }]
+      });
       return;
     }
 
     const existingItem = cartItems.find(item => item.id === product.id);
     
     if (existingItem) {
-      // Cek apakah menambah qty melebihi stok
-      if (existingItem.quantity >= product.stock) {
-        alert(`Stok ${product.name} hanya tersedia ${product.stock} pcs.`);
+      // Cek apakah NEXT quantity akan melebihi stok actual
+      if (existingItem.quantity + 1 > actualStock) {
+        setModal({
+          isOpen: true,
+          type: 'warning',
+          title: 'Stok Terbatas',
+          message: `Stok ${product.name} hanya tersedia ${actualStock} pcs. Saat ini sudah ${existingItem.quantity} di keranjang.`,
+          actions: [{ label: 'OK', type: 'primary' }]
+        });
         return;
       }
       setCartItems(cartItems.map(item =>
@@ -154,11 +180,19 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
   };
 
   const handleUpdateQuantity = (productId, quantity) => {
-    const product = products.find(p => p.id === productId);
+    // Get stock dari propsProducts (stok real)
+    const propsProduct = propsProducts?.find(p => p.id === productId);
+    const actualStock = propsProduct?.stock || 0;
     
-    // Validasi qty tidak melebihi stok
-    if (quantity > product.stock) {
-      alert(`Stok ${product.name} hanya tersedia ${product.stock} pcs.`);
+    // Validasi qty tidak melebihi stok actual
+    if (quantity > actualStock) {
+      setModal({
+        isOpen: true,
+        type: 'warning',
+        title: 'Stok Terbatas',
+        message: `Stok ${propsProduct?.name} hanya tersedia ${actualStock} pcs.`,
+        actions: [{ label: 'OK', type: 'primary' }]
+      });
       return;
     }
     
@@ -182,6 +216,11 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
   };
 
   const handleLogoutClick = () => {
+    setLogoutModal(true);
+  };
+
+  const handleConfirmLogout = () => {
+    setLogoutModal(false);
     onLogout();
   };
 
@@ -197,8 +236,8 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
   const handlePaymentComplete = () => {
     const total = Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1);
     
-    // Update stok produk
-    const updatedProducts = products.map(product => {
+    // Update stok produk - kurangi dari propsProducts yang real
+    const updatedProducts = (propsProducts || []).map(product => {
       const cartItem = cartItems.find(item => item.id === product.id);
       if (cartItem) {
         return {
@@ -209,12 +248,14 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
       return product;
     });
     
-    setProducts(updatedProducts);
-    
-    // Sinkronisasi dengan App.js state
+    // Sinkronisasi dengan App.js state dan localStorage
     if (setPropsProducts) {
       setPropsProducts(updatedProducts);
     }
+    localStorage.setItem('madura_products', JSON.stringify(updatedProducts));
+    
+    // Clear cart setelah update stok
+    setCartItems([]);
     
     const newTransaction = {
       id: Date.now(),
@@ -228,8 +269,14 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
       timestamp: Date.now()
     };
     
+    // Update local transactions state untuk HomePage history
     setTransactions([...transactions, newTransaction]);
-    setCartItems([]);
+    
+    // Update App.js state dan localStorage
+    const updatedTransactions = [...(propsTransactions || []), newTransaction];
+    setPropsTransactions(updatedTransactions);
+    localStorage.setItem('madura_transactions', JSON.stringify(updatedTransactions));
+    
     setActiveMenu('history');
     setShowQRIS(false);
   };
@@ -641,7 +688,13 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
       doc.save(`Receipt_${transaction.id}.pdf`);
     } catch (error) {
       console.error('Error generating receipt PDF:', error);
-      alert('Gagal membuat PDF receipt. Error: ' + error.message);
+      setModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Gagal Membuat PDF',
+        message: 'Error: ' + error.message,
+        actions: [{ label: 'OK', type: 'primary' }]
+      });
     }
   };
 
@@ -817,7 +870,13 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
       }, 250);
     } catch (error) {
       console.error('Error printing receipt:', error);
-      alert('Gagal mencetak receipt. Error: ' + error.message);
+      setModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Gagal Mencetak Receipt',
+        message: 'Error: ' + error.message,
+        actions: [{ label: 'OK', type: 'primary' }]
+      });
     }
   };
 
@@ -1075,12 +1134,48 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
       doc.save(`Laporan_Penjualan_${new Date().getTime()}.pdf`);
     } catch (error) {
       console.error('Error generating PDF:', error);
-      alert('Gagal membuat PDF report. Error: ' + error.message);
+      setModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Gagal Membuat PDF Report',
+        message: 'Error: ' + error.message,
+        actions: [{ label: 'OK', type: 'primary' }]
+      });
     }
   };
 
   return (
     <div className="home-container">
+      <AlertModal
+        isOpen={modal.isOpen}
+        type={modal.type}
+        title={modal.title}
+        message={modal.message}
+        actions={modal.actions}
+        onClose={() => setModal({ ...modal, isOpen: false })}
+      />
+
+      {/* Logout Confirmation Modal */}
+      <AlertModal
+        isOpen={logoutModal}
+        type="warning"
+        title="Konfirmasi Keluar"
+        message="Apakah Anda yakin ingin keluar dari aplikasi?"
+        onClose={() => setLogoutModal(false)}
+        actions={[
+          {
+            label: 'Batal',
+            type: 'secondary',
+            onClick: () => setLogoutModal(false)
+          },
+          {
+            label: 'Keluar',
+            type: 'primary',
+            onClick: handleConfirmLogout
+          }
+        ]}
+      />
+
       {/* Sidebar Navigation */}
       <Sidebar activeMenu={activeMenu} onMenuChange={handleMenuChange} onLogout={handleLogoutClick} />
 

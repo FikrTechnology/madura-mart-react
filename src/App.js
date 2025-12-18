@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './App.css';
 import { OutletProvider } from './context/OutletContext';
 import LoginPage from './components/LoginPage';
 import HomePage from './components/HomePage';
 import ProductManagement from './components/ProductManagement';
+import OwnerDashboard from './components/OwnerDashboard';
+import AdminDashboard from './components/AdminDashboard';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -11,6 +13,10 @@ function App() {
   const [currentOutlet, setCurrentOutlet] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [userOutlets, setUserOutlets] = useState([]);
+  const [transactions, setTransactions] = useState(() => {
+    const stored = localStorage.getItem('madura_transactions');
+    return stored ? JSON.parse(stored) : [];
+  });
   const [products, setProducts] = useState([
     {
       id: 1,
@@ -112,18 +118,17 @@ function App() {
     setUserOutlets([]);
   };
 
+  // Save products ke localStorage setiap ada perubahan (saat kasir checkout)
+  useEffect(() => {
+    localStorage.setItem('madura_products', JSON.stringify(products));
+  }, [products]);
+
   const handleLoginSuccess = (user, outlet, outlets) => {
     setCurrentUser(user);
     setCurrentOutlet(outlet);
     setUserOutlets(outlets || [outlet]);
-    // Determine role based on email
-    if (user.email === 'fikri@madura.com') {
-      setUserRole('owner');
-    } else if (user.email.includes('admin')) {
-      setUserRole('admin');
-    } else {
-      setUserRole('cashier');
-    }
+    // Determine role dari user object yang sudah memiliki role property
+    setUserRole(user.role || 'cashier');
     setIsLoggedIn(true);
   };
 
@@ -139,12 +144,33 @@ function App() {
       <div className="App">
         {!isLoggedIn ? (
           <LoginPage onLoginSuccess={handleLoginSuccess} />
+        ) : userRole === 'owner' ? (
+          <OwnerDashboard
+            onLogout={handleLogout}
+            currentOutlet={currentOutlet}
+            products={products}
+            setProducts={setProducts}
+            transactions={transactions}
+            userOutlets={userOutlets}
+            onSwitchOutlet={handleSwitchOutlet}
+          />
+        ) : userRole === 'admin' ? (
+          <AdminDashboard
+            onLogout={handleLogout}
+            currentOutlet={currentOutlet}
+            products={products}
+            setProducts={setProducts}
+            transactions={transactions}
+            userOutlets={userOutlets}
+          />
         ) : userRole === 'cashier' ? (
           <HomePage 
             onLogout={handleLogout} 
             currentOutlet={currentOutlet}
             products={products}
             setProducts={setProducts}
+            transactions={transactions}
+            setTransactions={setTransactions}
           />
         ) : (
           <ProductManagement

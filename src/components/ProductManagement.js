@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import '../styles/ProductManagement.css';
+import AlertModal from './AlertModal';
 
 const ProductManagement = ({ products, setProducts, currentOutlet, onLogout, onSwitchOutlet, userOutlets }) => {
   const [activeTab, setActiveTab] = useState('list');
+  const [modal, setModal] = useState({ isOpen: false, type: 'info', title: '', message: '', actions: [] });
   const [editingId, setEditingId] = useState(null);
   const [showOutletPicker, setShowOutletPicker] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
@@ -72,9 +74,29 @@ const ProductManagement = ({ products, setProducts, currentOutlet, onLogout, onS
   };
 
   const handleDelete = (id) => {
-    if (window.confirm('Yakin hapus produk ini?')) {
-      setProducts(products.filter(p => p.id !== id));
-    }
+    setModal({
+      isOpen: true,
+      type: 'warning',
+      title: 'Konfirmasi Hapus',
+      message: 'Apakah Anda yakin ingin menghapus produk ini?',
+      actions: [
+        { label: 'Batal', type: 'secondary' },
+        {
+          label: 'Hapus',
+          type: 'danger',
+          onClick: () => {
+            setProducts(products.filter(p => p.id !== id));
+            setModal({
+              isOpen: true,
+              type: 'success',
+              title: 'Berhasil!',
+              message: 'Produk berhasil dihapus',
+              actions: [{ label: 'OK', type: 'primary' }]
+            });
+          }
+        }
+      ]
+    });
   };
 
   const handleCancel = () => {
@@ -141,6 +163,15 @@ const ProductManagement = ({ products, setProducts, currentOutlet, onLogout, onS
 
   return (
     <div className="product-management">
+      <AlertModal
+        isOpen={modal.isOpen}
+        type={modal.type}
+        title={modal.title}
+        message={modal.message}
+        actions={modal.actions}
+        onClose={() => setModal({ ...modal, isOpen: false })}
+      />
+
       {/* Outlet Picker Modal */}
       {showOutletPicker && userOutlets && userOutlets.length > 0 && (
         <div className="outlet-picker-overlay">
