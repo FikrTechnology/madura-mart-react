@@ -110,6 +110,9 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
   const getFilteredTransactions = () => {
     let filtered = [...transactions];
 
+    // Filter berdasarkan outlet
+    filtered = filtered.filter(t => t.outlet_id === outletId);
+
     // Filter berdasarkan search query
     if (historySearchQuery.trim()) {
       filtered = filtered.filter(transaction =>
@@ -310,6 +313,7 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
     const productSales = {};
     
     transactions.forEach(transaction => {
+      if (transaction.outlet_id !== outletId) return; // Filter by outlet
       transaction.items.forEach(item => {
         if (!productSales[item.id]) {
           productSales[item.id] = {
@@ -344,6 +348,7 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
     });
 
     transactions.forEach(transaction => {
+      if (transaction.outlet_id !== outletId) return; // Filter by outlet
       transaction.items.forEach(item => {
         const product = products.find(p => p.id === item.id);
         if (product && categoryStats[product.category]) {
@@ -367,6 +372,7 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
     };
 
     transactions.forEach(transaction => {
+      if (transaction.outlet_id !== outletId) return; // Filter by outlet
       const method = transaction.paymentMethod;
       if (breakdown[method]) {
         breakdown[method].count += 1;
@@ -419,6 +425,11 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
     const filtered = transactions.filter(t => {
       const txTimestamp = t.timestamp || 0;
       
+      // Filter berdasarkan outlet
+      if (t.outlet_id !== outletId) {
+        return false;
+      }
+      
       if (reportTimePeriod === 'today') {
         return txTimestamp >= todayStart && txTimestamp < todayEnd;
       } else if (reportTimePeriod === 'week') {
@@ -448,7 +459,7 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
     
     const todayTransactions = transactions.filter(t => {
       const txTimestamp = t.timestamp || 0;
-      return txTimestamp >= todayStart && txTimestamp < todayEnd;
+      return t.outlet_id === outletId && txTimestamp >= todayStart && txTimestamp < todayEnd;
     });
 
     const totalSales = todayTransactions.reduce((sum, t) => sum + t.total, 0);
@@ -470,7 +481,7 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
     
     const yesterdayTransactions = transactions.filter(t => {
       const txTimestamp = t.timestamp || 0;
-      return txTimestamp >= yesterdayStart && txTimestamp < yesterdayEnd;
+      return t.outlet_id === outletId && txTimestamp >= yesterdayStart && txTimestamp < yesterdayEnd;
     });
 
     return yesterdayTransactions.reduce((sum, t) => sum + t.total, 0);
@@ -498,7 +509,7 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
     
     transactions.forEach(t => {
       const txTimestamp = t.timestamp || 0;
-      if (txTimestamp >= todayStart && txTimestamp < todayEnd) {
+      if (t.outlet_id === outletId && txTimestamp >= todayStart && txTimestamp < todayEnd) {
         const hour = new Date(txTimestamp).getHours();
         if (!hourStats[hour]) {
           hourStats[hour] = { hour, count: 0, total: 0 };
@@ -535,6 +546,8 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
 
     // Aggregate transactions menggunakan timestamp
     transactions.forEach(t => {
+      if (t.outlet_id !== outletId) return; // Filter by outlet
+      
       const txTimestamp = t.timestamp || 0;
       const txDate = new Date(txTimestamp);
       const txDateOnly = new Date(txDate.getFullYear(), txDate.getMonth(), txDate.getDate());
