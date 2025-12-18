@@ -777,10 +777,26 @@
   gap: 6px;
 }
 
+.payment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .payment-label {
   font-size: 13px;
   font-weight: 600;
   color: #333;
+}
+
+.payment-count {
+  display: inline-block;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .payment-value {
@@ -1260,9 +1276,15 @@
 }
 
 .product-card .product-category {
-  margin: 0 0 4px 0;
-  font-size: 12px;
-  color: #999;
+  margin: 0 0 8px 0;
+  font-size: 11px;
+  color: white;
+  font-weight: 700;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 4px 10px;
+  border-radius: 12px;
+  display: inline-block;
+  text-transform: capitalize;
 }
 
 .product-card .product-outlet {

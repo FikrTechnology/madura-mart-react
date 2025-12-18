@@ -487,6 +487,16 @@ const OwnerDashboard = ({ onLogout, currentOutlet, products, transactions, userO
     };
   };
 
+  // Get payment method counts
+  const getPaymentMethodCounts = () => {
+    const filtered = getFilteredTransactionsByPeriod();
+    return {
+      cash: filtered.filter(t => t.paymentMethod === 'cash').length,
+      transfer: filtered.filter(t => t.paymentMethod === 'transfer').length,
+      ewallet: filtered.filter(t => t.paymentMethod === 'ewallet').length
+    };
+  };
+
   // Get category performance
   const getCategoryPerformance = () => {
     const filtered = getFilteredTransactionsByPeriod();
@@ -935,26 +945,40 @@ const OwnerDashboard = ({ onLogout, currentOutlet, products, transactions, userO
                           transfer: filtered.filter(t => t.paymentMethod === 'transfer').reduce((sum, t) => sum + t.total, 0),
                           ewallet: filtered.filter(t => t.paymentMethod === 'ewallet').reduce((sum, t) => sum + t.total, 0)
                         };
+                    const counts = {
+                      cash: filtered.filter(t => t.paymentMethod === 'cash').length,
+                      transfer: filtered.filter(t => t.paymentMethod === 'transfer').length,
+                      ewallet: filtered.filter(t => t.paymentMethod === 'ewallet').length
+                    };
                     const total = breakdown.cash + breakdown.transfer + breakdown.ewallet;
 
                     return (
                       <>
                         <div className="payment-item">
-                          <span className="payment-label">💵 Tunai</span>
+                          <div className="payment-header">
+                            <span className="payment-label">💵 Tunai</span>
+                            <span className="payment-count">{counts.cash}x</span>
+                          </div>
                           <span className="payment-value">Rp {breakdown.cash.toLocaleString('id-ID')}</span>
                           <div className="payment-bar">
                             <div className="bar-fill" style={{ width: `${total > 0 ? (breakdown.cash / total) * 100 : 0}%`, backgroundColor: '#667eea' }}></div>
                           </div>
                         </div>
                         <div className="payment-item">
-                          <span className="payment-label">🏦 Transfer</span>
+                          <div className="payment-header">
+                            <span className="payment-label">🏦 Transfer</span>
+                            <span className="payment-count">{counts.transfer}x</span>
+                          </div>
                           <span className="payment-value">Rp {breakdown.transfer.toLocaleString('id-ID')}</span>
                           <div className="payment-bar">
                             <div className="bar-fill" style={{ width: `${total > 0 ? (breakdown.transfer / total) * 100 : 0}%`, backgroundColor: '#764ba2' }}></div>
                           </div>
                         </div>
                         <div className="payment-item">
-                          <span className="payment-label">📱 E-Wallet</span>
+                          <div className="payment-header">
+                            <span className="payment-label">📱 E-Wallet</span>
+                            <span className="payment-count">{counts.ewallet}x</span>
+                          </div>
                           <span className="payment-value">Rp {breakdown.ewallet.toLocaleString('id-ID')}</span>
                           <div className="payment-bar">
                             <div className="bar-fill" style={{ width: `${(breakdown.ewallet / total) * 100}%`, backgroundColor: '#f093fb' }}></div>
