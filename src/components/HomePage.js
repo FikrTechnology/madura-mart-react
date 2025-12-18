@@ -11,6 +11,8 @@ import { useOutlet } from '../context/OutletContext';
 const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProducts: setPropsProducts, transactions: propsTransactions, setTransactions: setPropsTransactions }) => {
   const [modal, setModal] = useState({ isOpen: false, type: 'info', title: '', message: '', actions: [] });
   const [logoutModal, setLogoutModal] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [showCartSidebar, setShowCartSidebar] = useState(false);
   const outlet = useOutlet();
   const outletId = currentOutlet?.id || 'outlet_001'; // fallback jika context belum ready
   const [activeMenu, setActiveMenu] = useState('home');
@@ -1189,11 +1191,44 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
         ]}
       />
 
-      {/* Sidebar Navigation */}
-      <Sidebar activeMenu={activeMenu} onMenuChange={handleMenuChange} onLogout={handleLogoutClick} />
+      {/* Sidebar Overlay for Mobile/Tablet */}
+      {showSidebar && (
+        <div className="sidebar-overlay" onClick={() => setShowSidebar(false)} />
+      )}
+
+      {/* Sidebar Navigation - Desktop */}
+      <Sidebar activeMenu={activeMenu} onMenuChange={(menu) => { handleMenuChange(menu); setShowSidebar(false); }} onLogout={handleLogoutClick} />
+
+      {/* Sidebar Navigation - Mobile/Tablet Overlay */}
+      <div className={`sidebar-wrapper ${showSidebar ? 'show' : ''}`}>
+        <Sidebar activeMenu={activeMenu} onMenuChange={(menu) => { handleMenuChange(menu); setShowSidebar(false); }} onLogout={handleLogoutClick} />
+      </div>
 
       {/* Main Content */}
       <div className="main-wrapper">
+        {/* Mobile Header with Toggle */}
+        <div className="mobile-header">
+          <button className="toggle-sidebar-btn" onClick={() => setShowSidebar(!showSidebar)}>
+            ☰ Menu
+          </button>
+          <h1 className="mobile-title">Madura Mart</h1>
+          {/* Cart Button - Only show when in menu (kasir) feature */}
+          {activeMenu === 'menu' && (
+            <button className="toggle-cart-btn" onClick={() => setShowCartSidebar(!showCartSidebar)}>
+              🛒 ({cartItems.length})
+            </button>
+          )}
+          {/* Spacer when cart button is hidden */}
+          {activeMenu !== 'menu' && (
+            <div style={{ width: '60px' }}></div>
+          )}
+        </div>
+
+        {/* Cart Overlay for Mobile/Tablet - Only show in menu feature */}
+        {showCartSidebar && activeMenu === 'menu' && (
+          <div className="cart-overlay" onClick={() => setShowCartSidebar(false)} />
+        )}
+
         {/* Content Area */}
         <div className="home-content">
           {/* Home Section - Empty Placeholder */}
@@ -1442,14 +1477,27 @@ const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProduct
                 </div>
               </div>
 
-              {/* Cart Sidebar for Menu - Always Visible */}
-              <Cart
-                items={cartItems}
-                onRemoveItem={handleRemoveFromCart}
-                onUpdateQuantity={handleUpdateQuantity}
-                onClearCart={handleClearCart}
-                onPlaceOrder={handlePlaceOrder}
-              />
+              {/* Cart Sidebar for Desktop - Always visible on desktop */}
+              <div className="cart-desktop">
+                <Cart
+                  items={cartItems}
+                  onRemoveItem={handleRemoveFromCart}
+                  onUpdateQuantity={handleUpdateQuantity}
+                  onClearCart={handleClearCart}
+                  onPlaceOrder={handlePlaceOrder}
+                />
+              </div>
+
+              {/* Cart Sidebar for Mobile/Tablet - Overlay, toggled */}
+              <div className={`cart-wrapper ${showCartSidebar ? 'show' : ''}`}>
+                <Cart
+                  items={cartItems}
+                  onRemoveItem={handleRemoveFromCart}
+                  onUpdateQuantity={handleUpdateQuantity}
+                  onClearCart={handleClearCart}
+                  onPlaceOrder={handlePlaceOrder}
+                />
+              </div>
             </div>
           )}
 
