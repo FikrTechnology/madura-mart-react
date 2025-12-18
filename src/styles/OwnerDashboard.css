@@ -878,7 +878,258 @@
   border-bottom: none;
 }
 
+/* Sold Products Grid */
+.products-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.products-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #1a1a1a;
+  font-weight: 700;
+}
+
+.sort-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.sort-btn {
+  padding: 8px 14px;
+  border: 2px solid #667eea;
+  background: white;
+  color: #667eea;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.sort-btn:hover {
+  background: #f0f3ff;
+}
+
+.sort-btn.active {
+  background: #667eea;
+  color: white;
+}
+
+.sold-products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+/* Sold Products Table Styles */
+.sold-products-table-container {
+  margin-top: 20px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.sold-products-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+.sold-products-table thead {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.sold-products-table th {
+  padding: 16px 12px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.sold-products-table th.rank-col {
+  width: 60px;
+  text-align: center;
+}
+
+.sold-products-table th.qty-col {
+  width: 120px;
+  text-align: center;
+}
+
+.sold-products-table th.revenue-col {
+  width: 160px;
+  text-align: center;
+}
+
+.sold-products-table th.product-col {
+  flex: 1;
+  text-align: left;
+}
+
+.sold-products-table tbody tr {
+  border-bottom: 1px solid #e8e8e8;
+  transition: all 0.3s ease;
+}
+
+.sold-products-table tbody tr:nth-child(odd) {
+  background: #f9f9ff;
+}
+
+.sold-products-table tbody tr:hover {
+  background: #f0f3ff;
+  box-shadow: inset 0 2px 8px rgba(102, 126, 234, 0.1);
+}
+
+.sold-products-table td {
+  padding: 14px 12px;
+  font-size: 14px;
+  color: #333;
+}
+
+.sold-products-table td.rank-col {
+  text-align: center;
+}
+
+.sold-products-table td.qty-col {
+  text-align: center;
+}
+
+.sold-products-table td.revenue-col {
+  text-align: center;
+}
+
+/* Table Cell Styles */
+.rank-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.product-title {
+  font-weight: 600;
+  color: #1a1a1a;
+  display: block;
+  line-height: 1.4;
+  max-width: 300px;
+  word-break: break-word;
+}
+
+.qty-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.revenue-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+/* Old card styles - keeping for reference but hidden */
+.sold-product-card {
+  display: none;
+}
+
 /* Responsive */
+@media (max-width: 768px) {
+  .sold-products-table th {
+    padding: 12px 8px;
+    font-size: 11px;
+  }
+
+  .sold-products-table td {
+    padding: 10px 8px;
+    font-size: 13px;
+  }
+
+  .sold-products-table th.rank-col,
+  .sold-products-table td.rank-col {
+    width: 50px;
+  }
+
+  .sold-products-table th.qty-col,
+  .sold-products-table td.qty-col {
+    width: 100px;
+  }
+
+  .sold-products-table th.revenue-col,
+  .sold-products-table td.revenue-col {
+    width: 120px;
+  }
+
+  .sold-products-table th.qty-col,
+  .sold-products-table td.qty-col {
+    width: 100px;
+  }
+
+  .sold-products-table th.revenue-col,
+  .sold-products-table td.revenue-col {
+    width: 140px;
+  }
+
+  .product-title {
+    max-width: 150px;
+    font-size: 13px;
+  }
+
+  .qty-badge,
+  .revenue-badge {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .products-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .sort-buttons {
+    width: 100%;
+  }
+
+  .sort-btn {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .sold-products-table {
+    font-size: 12px;
+  }
+
+  .product-title {
+    max-width: 120px;
+    font-size: 12px;
+  }
+}
+
 @media (max-width: 768px) {
   .report-controls {
     flex-direction: column;

@@ -12,6 +12,7 @@ const OwnerDashboard = ({ onLogout, currentOutlet, products, transactions, userO
   const [viewMode, setViewMode] = useState('all'); // 'all' or specific outlet id
   const [reportViewMode, setReportViewMode] = useState('all'); // Separate view mode for reports
   const [selectedManagementOutlet, setSelectedManagementOutlet] = useState(null); // For filtering employees by outlet in management tab
+  const [productSortBy, setProductSortBy] = useState('quantity'); // 'quantity' or 'revenue' for sorting sold products
   
   // Employee management states
   const [employees, setEmployees] = useState(() => {
@@ -114,7 +115,63 @@ const OwnerDashboard = ({ onLogout, currentOutlet, products, transactions, userO
   const getTopProducts = () => {
     const productSales = {};
     
-    transactions.forEach(transaction => {
+    // Filter transactions based on viewMode
+    const filteredTransactions = viewMode === 'all' 
+      ? transactions 
+      : transactions.filter(t => t.outlet_id === viewMode);
+    
+    filteredTransactions.forEach(transaction => {
+      transaction.items.forEach(item => {
+        // Group by product ID first
+        if (!productSales[item.id]) {
+          productSales[item.id] = {
+            id: item.id,
+            name: item.name,
+            quantity: 0,
+            revenue: 0
+          };
+        }
+        productSales[item.id].quantity += item.quantity;
+        productSales[item.id].revenue += item.price * item.quantity;
+      });
+    });
+
+    // If viewing all outlets, also merge products with same name but different IDs
+    if (viewMode === 'all') {
+      const mergedProducts = {};
+      Object.values(productSales).forEach(product => {
+        const key = product.name.toLowerCase().trim();
+        if (!mergedProducts[key]) {
+          mergedProducts[key] = {
+            id: product.id,
+            name: product.name,
+            quantity: 0,
+            revenue: 0
+          };
+        }
+        mergedProducts[key].quantity += product.quantity;
+        mergedProducts[key].revenue += product.revenue;
+      });
+      
+      return Object.values(mergedProducts)
+        .sort((a, b) => b.revenue - a.revenue)
+        .slice(0, 5);
+    }
+
+    return Object.values(productSales)
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 5);
+  };
+
+  // Get all sold products for reports (not just top 5, with outlet filtering)
+  const getAllSoldProducts = () => {
+    const filteredTx = reportViewMode === 'all'
+      ? getFilteredTransactionsByPeriod()
+      : getFilteredTransactionsByPeriod().filter(t => t.outlet_id === reportViewMode);
+
+    const productSales = {};
+    
+    filteredTx.forEach(transaction => {
       transaction.items.forEach(item => {
         if (!productSales[item.id]) {
           productSales[item.id] = {
@@ -129,9 +186,48 @@ const OwnerDashboard = ({ onLogout, currentOutlet, products, transactions, userO
       });
     });
 
-    return Object.values(productSales)
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 5);
+    // If viewing all outlets, merge products with same name
+    if (reportViewMode === 'all') {
+      const mergedProducts = {};
+      Object.values(productSales).forEach(product => {
+        const key = product.name.toLowerCase().trim();
+        if (!mergedProducts[key]) {
+          mergedProducts[key] = {
+            id: product.id,
+            name: product.name,
+            quantity: 0,
+            revenue: 0
+          };
+        }
+        mergedProducts[key].quantity += product.quantity;
+        mergedProducts[key].revenue += product.revenue;
+      });
+      
+      const sorted = Object.values(mergedProducts);
+      return productSortBy === 'quantity' 
+        ? sorted.sort((a, b) => b.quantity - a.quantity)
+        : sorted.sort((a, b) => b.revenue - a.revenue);
+    }
+
+    const sorted = Object.values(productSales);
+    return productSortBy === 'quantity' 
+      ? sorted.sort((a, b) => b.quantity - a.quantity)
+      : sorted.sort((a, b) => b.revenue - a.revenue);
+  };
+
+  // Get sorted products with max value for bar calculation
+  const getSortedSoldProducts = () => {
+    const products = getAllSoldProducts();
+    if (products.length === 0) return [];
+    
+    const sortKey = productSortBy === 'quantity' ? 'quantity' : 'revenue';
+    const maxValue = Math.max(...products.map(p => p[sortKey]));
+    
+    return products.map(p => ({
+      ...p,
+      maxValue,
+      percentage: (p[sortKey] / maxValue) * 100
+    }));
   };
 
   // Get inventory summary
@@ -884,29 +980,59 @@ const OwnerDashboard = ({ onLogout, currentOutlet, products, transactions, userO
               </div>
             </div>
 
-            {/* Top Products Detail */}
+            {/* Sold Products Detail */}
             <div className="top-products-detail">
-              <h3>🏆 Produk Terlaris</h3>
-              <table className="products-table">
-                <thead>
-                  <tr>
-                    <th>Rank</th>
-                    <th>Produk</th>
-                    <th>Terjual</th>
-                    <th>Revenue</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {topProducts.map((prod, idx) => (
-                    <tr key={idx}>
-                      <td>#{idx + 1}</td>
-                      <td>{prod.name}</td>
-                      <td>{prod.quantity}</td>
-                      <td>Rp {prod.revenue.toLocaleString('id-ID')}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="products-header">
+                <h3>📦 Produk yang Terjual</h3>
+                <div className="sort-buttons">
+                  <button 
+                    className={`sort-btn ${productSortBy === 'quantity' ? 'active' : ''}`}
+                    onClick={() => setProductSortBy('quantity')}
+                  >
+                    📊 Qty Terbanyak
+                  </button>
+                  <button 
+                    className={`sort-btn ${productSortBy === 'revenue' ? 'active' : ''}`}
+                    onClick={() => setProductSortBy('revenue')}
+                  >
+                    💰 Revenue Terbanyak
+                  </button>
+                </div>
+              </div>
+              <div className="sold-products-table-container">
+                {getSortedSoldProducts().length > 0 ? (
+                  <table className="sold-products-table">
+                    <thead>
+                      <tr>
+                        <th className="rank-col">No</th>
+                        <th className="product-col">Nama Produk</th>
+                        <th className="qty-col">Qty Terjual</th>
+                        <th className="revenue-col">Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getSortedSoldProducts().map((prod, idx) => (
+                        <tr key={prod.id} className="product-row">
+                          <td className="rank-col">
+                            <span className="rank-number">{idx + 1}</span>
+                          </td>
+                          <td className="product-col">
+                            <span className="product-title">{prod.name}</span>
+                          </td>
+                          <td className="qty-col">
+                            <span className="qty-badge">{prod.quantity}</span>
+                          </td>
+                          <td className="revenue-col">
+                            <span className="revenue-badge">Rp {prod.revenue.toLocaleString('id-ID')}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <p className="no-data">Belum ada data produk yang terjual</p>
+                )}
+              </div>
             </div>
           </div>
         )}
