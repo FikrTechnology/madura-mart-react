@@ -130,8 +130,10 @@ export const OutletProvider = ({ children }) => {
     };
   };
 
-  const selectOutlet = (outletId) => {
-    const outlet = userOutlets.find(o => o.id === outletId);
+  const selectOutlet = (outletId, outletsList) => {
+    // Use provided outletsList if available (untuk avoid race condition)
+    const outletsToSearch = outletsList || userOutlets;
+    const outlet = outletsToSearch.find(o => o.id === outletId);
     
     if (!outlet) {
       throw new Error('Outlet tidak ditemukan atau tidak accessible');

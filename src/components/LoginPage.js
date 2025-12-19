@@ -55,8 +55,8 @@ const LoginPage = ({ onLoginSuccess }) => {
     try {
       const result = login(email, password);
       
-      // Langsung select outlet pertama tanpa tampil pilihan
-      selectOutlet(result.outlets[0].id);
+      // Pass outlets list ke selectOutlet untuk avoid race condition dari setState
+      selectOutlet(result.outlets[0].id, result.outlets);
       onLoginSuccess(result.user, result.outlets[0], result.outlets);
     } catch (err) {
       setError(err.message);
