@@ -1,3 +1,7 @@
+// ==========================================
+// PDF Generator Utility
+// ==========================================
+import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
 const colors = {
@@ -10,6 +14,38 @@ const colors = {
   light: { r: 237, g: 242, b: 247 },        // Light Gray
   text: { r: 0, g: 0, b: 0 },               // Black
   textGray: { r: 113, g: 128, b: 150 }      // Gray
+};
+
+/**
+ * Generate PDF dari HTML element
+ * @param {HTMLElement} element - Element yang akan di-convert ke PDF
+ * @param {string} filename - Nama file PDF
+ */
+export const generatePDF = async (element, filename = 'document.pdf') => {
+  try {
+    const canvas = await html2canvas(element, {
+      scale: 2,
+      useCORS: true
+    });
+
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    const imgWidth = 210;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+    pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+    pdf.save(filename);
+
+    return true;
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    throw error;
+  }
 };
 
 export const generateSalesPDF = (
