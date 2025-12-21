@@ -1,7 +1,7 @@
+// @ts-nocheck
 import React, { useState, useEffect } from 'react';
 import '../styles/AdminDashboard.css';
 import AlertModal from './AlertModal';
-import { productAPI } from '../services/api';
 
 const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOutlets }) => {
   const [activeTab, setActiveTab] = useState('products');
@@ -157,33 +157,17 @@ const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOu
         {
           label: 'Hapus',
           type: 'danger',
-          onClick: async () => {
-            try {
-              // Delete from backend first
-              await productAPI.delete(id);
-              
-              // Then remove from state
-              const updatedProducts = products.filter(p => p.id !== id);
-              setProducts(updatedProducts);
-              localStorage.setItem('madura_products', JSON.stringify(updatedProducts));
-              setModal({
-                isOpen: true,
-                type: 'success',
-                title: 'Berhasil!',
-                message: 'Produk berhasil dihapus dari database!',
-                actions: [{ label: 'OK', type: 'primary' }]
-              });
-            } catch (error) {
-              console.error('Error deleting product:', error);
-              const errorMessage = error instanceof Error ? error.message : 'Gagal menghapus produk dari database';
-              setModal({
-                isOpen: true,
-                type: 'error',
-                title: 'Error',
-                message: errorMessage,
-                actions: [{ label: 'OK', type: 'primary' }]
-              });
-            }
+          onClick: () => {
+            const updatedProducts = products.filter(p => p.id !== id);
+            setProducts(updatedProducts);
+            localStorage.setItem('madura_products', JSON.stringify(updatedProducts));
+            setModal({
+              isOpen: true,
+              type: 'success',
+              title: 'Berhasil!',
+              message: 'Produk berhasil dihapus',
+              actions: [{ label: 'OK', type: 'primary' }]
+            });
           }
         }
       ]

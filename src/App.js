@@ -1,189 +1,236 @@
+// @ts-nocheck
 import { useState, useEffect } from 'react';
 import './App.css';
-import { OutletProvider } from './context/OutletContext';
-import LoginPage from './components/LoginPage';
-import HomePage from './components/HomePage';
-import ProductManagement from './components/ProductManagement';
-import OwnerDashboard from './components/OwnerDashboard';
-import AdminDashboard from './components/AdminDashboard';
+import { useAuth, useOutlet as useOutletHook, useProduct } from './hooks';
+import LoginPage from './components/LoginPage.tsx';
+import HomePage from './components/HomePage.tsx';
+import OwnerDashboard from './components/OwnerDashboard.tsx';
+import AdminDashboard from './components/AdminDashboard.tsx';
 
+/**
+ * Main App Component - Terintegrasi dengan Backend API (REAL)
+ * ✅ PENTING: Backend server HARUS running untuk login!
+ * 
+ * Menghapus OutletContext/localStorage context
+ * Menggunakan API hooks untuk semua data
+ */
 function App() {
+  // ===== API Hooks - Real backend integration =====
+  const { user: authUser, token, loading: authLoading, logout: apiLogout } = useAuth();
+  const { outlets, fetchOutlets } = useOutletHook();
+  const { products, fetchProducts } = useProduct();
+
+  // ===== Local State =====
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [currentOutlet, setCurrentOutlet] = useState(null);
   const [userRole, setUserRole] = useState(null);
   const [userOutlets, setUserOutlets] = useState([]);
-  const [transactions, setTransactions] = useState(() => {
-    const stored = localStorage.getItem('madura_transactions');
-    return stored ? JSON.parse(stored) : [];
-  });
-  const [products, setProducts] = useState([
-    {
-      id: 1,
-      outlet_id: 'outlet_001',
-      name: 'Beras Premium 5kg',
-      price: 75000,
-      category: 'Kebutuhan Dapur',
-      image: 'https://images.unsplash.com/photo-1586857529235-ea4a90b1e595?w=300&h=300&fit=crop',
-      stock: 25
-    },
-    {
-      id: 2,
-      outlet_id: 'outlet_001',
-      name: 'Minyak Goreng 2L',
-      price: 28000,
-      category: 'Kebutuhan Dapur',
-      image: 'https://images.unsplash.com/photo-1587291352341-ccb540eae75f?w=300&h=300&fit=crop',
-      stock: 0
-    },
-    {
-      id: 3,
-      outlet_id: 'outlet_001',
-      name: 'Gula Putih 1kg',
-      price: 12000,
-      category: 'Kebutuhan Dapur',
-      image: 'https://images.unsplash.com/photo-1599599810694-b308981df39e?w=300&h=300&fit=crop',
-      stock: 5
-    },
-    {
-      id: 4,
-      outlet_id: 'outlet_001',
-      name: 'Telur Ayam 1 Kg',
-      price: 32000,
-      category: 'Makanan',
-      image: 'https://images.unsplash.com/photo-1582722921519-94d3dba35522?w=300&h=300&fit=crop',
-      stock: 15
-    },
-    {
-      id: 5,
-      outlet_id: 'outlet_001',
-      name: 'Susu UHT 1L',
-      price: 15000,
-      category: 'Minuman',
-      image: 'https://images.unsplash.com/photo-1553531088-89dbbf58d9d1?w=300&h=300&fit=crop',
-      stock: 0
-    },
-    {
-      id: 6,
-      outlet_id: 'outlet_001',
-      name: 'Tepung Terigu 1kg',
-      price: 10000,
-      category: 'Kebutuhan Dapur',
-      image: 'https://images.unsplash.com/photo-1585707372641-92b5e5e36cce?w=300&h=300&fit=crop',
-      stock: 32
-    },
-    {
-      id: 7,
-      outlet_id: 'outlet_001',
-      name: 'Garam Dapur 500g',
-      price: 5000,
-      category: 'Kebutuhan Dapur',
-      image: 'https://images.unsplash.com/photo-1599599810771-f2b6b6c9f0f5?w=300&h=300&fit=crop',
-      stock: 50
-    },
-    {
-      id: 8,
-      outlet_id: 'outlet_001',
-      name: 'Kopi Arabika 500g',
-      price: 85000,
-      category: 'Minuman',
-      image: 'https://images.unsplash.com/photo-1559056199-641a0ac8b3f4?w=300&h=300&fit=crop',
-      stock: 8
-    },
-    {
-      id: 9,
-      outlet_id: 'outlet_002',
-      name: 'Beras Premium 5kg',
-      price: 75000,
-      category: 'Kebutuhan Dapur',
-      image: 'https://images.unsplash.com/photo-1586857529235-ea4a90b1e595?w=300&h=300&fit=crop',
-      stock: 20
-    },
-    {
-      id: 10,
-      outlet_id: 'outlet_002',
-      name: 'Minyak Goreng 2L',
-      price: 28000,
-      category: 'Kebutuhan Dapur',
-      image: 'https://images.unsplash.com/photo-1587291352341-ccb540eae75f?w=300&h=300&fit=crop',
-      stock: 10
-    }
-  ]);
+  const [transactions, setTransactions] = useState([]);
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setCurrentUser(null);
-    setCurrentOutlet(null);
-    setUserRole(null);
-    setUserOutlets([]);
-  };
-
-  // Save products ke localStorage setiap ada perubahan (saat kasir checkout)
+  /**
+   * Sync API auth state dengan local state
+   */
   useEffect(() => {
-    localStorage.setItem('madura_products', JSON.stringify(products));
-  }, [products]);
+    if (authUser && token) {
+      setIsLoggedIn(true);
+      setCurrentUser(authUser);
+      setUserRole(authUser.role);
+      console.log('[App] User authenticated:', authUser);
+    } else {
+      setIsLoggedIn(false);
+      setCurrentUser(null);
+      setUserRole(null);
+    }
+  }, [authUser, token]);
 
-  const handleLoginSuccess = (user, outlet, outlets) => {
+  /**
+   * Fetch outlets dan products setelah user login
+   */
+  useEffect(() => {
+    if (isLoggedIn && authUser) {
+      console.log('[App] Fetching outlets and products for:', authUser.email);
+      fetchOutlets();
+      fetchProducts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]);
+
+  /**
+   * Set outlets dari API
+   */
+  useEffect(() => {
+    if (outlets && outlets.length > 0) {
+      setUserOutlets(outlets);
+      if (!currentOutlet) {
+        setCurrentOutlet(outlets[0]);
+      }
+      console.log('[App] Outlets loaded from API:', outlets);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [outlets, currentOutlet]);
+
+  /**
+   * Load transactions dari localStorage
+   * TODO: Migrate to API transactionAPI.getByOutlet()
+   */
+  useEffect(() => {
+    const stored = localStorage.getItem('madura_transactions');
+    if (stored) {
+      try {
+        setTransactions(JSON.parse(stored));
+      } catch (err) {
+        console.error('[App] Failed to parse transactions:', err);
+      }
+    }
+  }, []);
+
+  /**
+   * Handle successful login
+   */
+  const handleLoginSuccess = (user, outlet, outletsList) => {
+    console.log('[App] handleLoginSuccess:', { user, outlet, outletsList });
+    setIsLoggedIn(true);
     setCurrentUser(user);
     setCurrentOutlet(outlet);
-    setUserOutlets(outlets || [outlet]);
-    // Determine role dari user object yang sudah memiliki role property
-    setUserRole(user.role || 'cashier');
-    setIsLoggedIn(true);
+    setUserOutlets(outletsList || outlets || []);
+    setUserRole(user.role);
   };
 
-  const handleSwitchOutlet = (outletId) => {
-    const selectedOutlet = userOutlets.find(o => o.id === outletId);
-    if (selectedOutlet) {
-      setCurrentOutlet(selectedOutlet);
+  /**
+   * Handle logout
+   */
+  const handleLogout = async () => {
+    try {
+      await apiLogout();
+      setIsLoggedIn(false);
+      setCurrentUser(null);
+      setCurrentOutlet(null);
+      setUserOutlets([]);
+      setUserRole(null);
+      console.log('[App] User logged out');
+    } catch (err) {
+      console.error('[App] Logout error:', err);
     }
   };
 
-  return (
-    <OutletProvider>
-      <div className="App">
-        {!isLoggedIn ? (
-          <LoginPage onLoginSuccess={handleLoginSuccess} />
-        ) : userRole === 'owner' ? (
-          <OwnerDashboard
-            onLogout={handleLogout}
-            currentOutlet={currentOutlet}
-            products={products}
-            setProducts={setProducts}
-            transactions={transactions}
-            userOutlets={userOutlets}
-            onSwitchOutlet={handleSwitchOutlet}
-          />
-        ) : userRole === 'admin' ? (
-          <AdminDashboard
-            onLogout={handleLogout}
-            currentOutlet={currentOutlet}
-            products={products}
-            setProducts={setProducts}
-            transactions={transactions}
-            userOutlets={userOutlets}
-          />
-        ) : userRole === 'cashier' ? (
-          <HomePage 
-            onLogout={handleLogout} 
-            currentOutlet={currentOutlet}
-            products={products}
-            setProducts={setProducts}
-            transactions={transactions}
-            setTransactions={setTransactions}
-          />
-        ) : (
-          <ProductManagement
-            products={products}
-            setProducts={setProducts}
-            currentOutlet={currentOutlet}
-            onLogout={handleLogout}
-            onSwitchOutlet={handleSwitchOutlet}
-            userOutlets={userOutlets}
-          />
-        )}
+  /**
+   * Handle outlet switch
+   */
+  const handleSwitchOutlet = (outletId) => {
+    const selected = userOutlets.find(o => o.id === outletId);
+    if (selected) {
+      setCurrentOutlet(selected);
+      console.log('[App] Switched to outlet:', selected.name);
+    }
+  };
+
+  /**
+   * Save transaction
+   */
+  const handleSaveTransaction = (transaction) => {
+    const newTransactions = [...transactions, { ...transaction, id: Date.now() }];
+    setTransactions(newTransactions);
+    localStorage.setItem('madura_transactions', JSON.stringify(newTransactions));
+  };
+
+  /**
+   * Show loading screen jika auth sedang loading
+   */
+  if (authLoading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        background: '#f5f5f5',
+        flexDirection: 'column'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <h2>Loading...</h2>
+          <p>Checking authentication status...</p>
+          <p style={{ fontSize: '12px', color: '#999' }}>
+            🔍 Connecting to: {process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}
+          </p>
+        </div>
       </div>
-    </OutletProvider>
+    );
+  }
+
+  /**
+   * Show login page jika belum login
+   */
+  if (!isLoggedIn) {
+    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  /**
+   * Render based on user role
+   */
+  return (
+    <div className="App">
+      {userRole === 'owner' && (
+        <OwnerDashboard
+          onLogout={handleLogout}
+          currentOutlet={currentOutlet}
+          products={products}
+          transactions={transactions}
+          userOutlets={userOutlets}
+          onSwitchOutlet={handleSwitchOutlet}
+        />
+      )}
+      {userRole === 'admin' && (
+        <AdminDashboard
+          onLogout={handleLogout}
+          currentOutlet={currentOutlet}
+          products={products}
+          userOutlets={userOutlets}
+          onSwitchOutlet={handleSwitchOutlet}
+        />
+      )}
+      {userRole === 'cashier' && (
+        <HomePage
+          onLogout={handleLogout}
+          currentOutlet={currentOutlet}
+          products={products}
+          transactions={transactions}
+          userOutlets={userOutlets}
+          onSwitchOutlet={handleSwitchOutlet}
+          onSaveTransaction={handleSaveTransaction}
+          currentUser={currentUser}
+        />
+      )}
+
+      {/* Development Info - Backend Connection Status */}
+      {process.env.NODE_ENV === 'development' && (
+        <div style={{
+          position: 'fixed',
+          bottom: 10,
+          right: 10,
+          background: 'rgba(0,0,0,0.8)',
+          color: '#fff',
+          padding: '12px',
+          borderRadius: '4px',
+          fontSize: '11px',
+          maxWidth: '220px',
+          zIndex: 9999,
+          fontFamily: 'monospace',
+          lineHeight: '1.6'
+        }}>
+          <div style={{ marginBottom: '8px', borderBottom: '1px solid #444', paddingBottom: '8px' }}>
+            <strong>🔗 API Status</strong>
+          </div>
+          <div>
+            👤 User: {authUser?.email || 'N/A'}<br/>
+            🎭 Role: {userRole || 'N/A'}<br/>
+            🏪 Outlets: {userOutlets.length || 0}<br/>
+            📍 Current: {currentOutlet?.name || 'N/A'}<br/>
+            ✅ Backend: REQUIRED
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

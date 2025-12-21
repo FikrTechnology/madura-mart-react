@@ -1,0 +1,2184 @@
+// @ts-nocheck
+import React, { useState, useEffect, useRef } from 'react';
+import '../styles/Home.css';
+import Sidebar from './Sidebar';
+import ProductCard from './ProductCard';
+import Cart from './Cart';
+import AlertModal from './AlertModal';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+
+const HomePage = ({ onLogout, currentOutlet, products: propsProducts, setProducts: setPropsProducts, transactions: propsTransactions, setTransactions: setPropsTransactions }) => {
+  const [modal, setModal] = useState({ isOpen: false, type: 'info', title: '', message: '', actions: [] });
+  const [logoutModal, setLogoutModal] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [showCartSidebar, setShowCartSidebar] = useState(false);
+  // ✅ Gunakan currentOutlet dari props, bukan dari context
+  const outletId = currentOutlet?.id || 'outlet_001'; // fallback jika belum ada outlet
+  const [activeMenu, setActiveMenu] = useState('home');
+  const [cartItems, setCartItems] = useState([]);
+  const [showCart, setShowCart] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('Semua');
+  const [sortBy, setSortBy] = useState('name');
+  
+  // Payment states
+  const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [amountPaid, setAmountPaid] = useState('');
+  const [showQRIS, setShowQRIS] = useState(false);
+  const [transactions, setTransactions] = useState(propsTransactions || []);
+  
+  // History page states
+  const [selectedTransaction, setSelectedTransaction] = useState(null);
+  const [historySearchQuery, setHistorySearchQuery] = useState('');
+  const [historyFilterMethod, setHistoryFilterMethod] = useState('all');
+  const [historySortBy, setHistorySortBy] = useState('newest');
+  
+  // Home & Report states
+  const [reportTimePeriod, setReportTimePeriod] = useState('all');
+  
+  // Dynamic time states
+  const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+  const [currentDate, setCurrentDate] = useState(new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
+
+  // Gunakan products dari props
+  const [products, setProducts] = useState(propsProducts || []);
+
+  // Kategori yang tersedia
+  const categories = [
+    'Semua',
+    'Kebutuhan Dapur',
+    'Kebutuhan Rumah',
+    'Makanan',
+    'Minuman',
+    'Rokok',
+    'Lain-lain'
+  ];
+
+  // Sinkronisasi products dari props - static display sesuai admin input
+  useEffect(() => {
+    if (propsProducts && propsProducts.length > 0) {
+      setProducts(propsProducts);
+    }
+  }, [propsProducts]);
+
+  // Sinkronisasi transactions dari props - untuk history page di HomePage
+  useEffect(() => {
+    if (propsTransactions && propsTransactions.length > 0) {
+      setTransactions(propsTransactions);
+    }
+  }, [propsTransactions]);
+
+  // useEffect untuk update waktu setiap detik
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = new Date();
+      setCurrentTime(now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      setCurrentDate(now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Filter dan sort produk
+  const getFilteredProducts = () => {
+    let filtered = products.filter(p => p.outlet_id === outletId); // ← FILTER PER OUTLET
+
+    // Filter berdasarkan kategori
+    if (selectedCategory !== 'Semua') {
+      filtered = filtered.filter(p => p.category === selectedCategory);
+    }
+
+    // Filter berdasarkan search query
+    if (searchQuery.trim()) {
+      filtered = filtered.filter(p =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    // Sort
+    if (sortBy === 'name') {
+      filtered.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortBy === 'price-low') {
+      filtered.sort((a, b) => a.price - b.price);
+    } else if (sortBy === 'price-high') {
+      filtered.sort((a, b) => b.price - a.price);
+    }
+
+    return filtered;
+  };
+
+  // Filter dan sort untuk history
+  const getFilteredTransactions = () => {
+    let filtered = [...transactions];
+
+    // Filter berdasarkan outlet
+    filtered = filtered.filter(t => t.outlet_id === outletId);
+
+    // Filter berdasarkan search query
+    if (historySearchQuery.trim()) {
+      filtered = filtered.filter(transaction =>
+        transaction.items.some(item =>
+          item.name.toLowerCase().includes(historySearchQuery.toLowerCase())
+        ) || transaction.id.toString().includes(historySearchQuery)
+      );
+    }
+
+    // Filter berdasarkan metode pembayaran
+    if (historyFilterMethod !== 'all') {
+      filtered = filtered.filter(t => t.paymentMethod === historyFilterMethod);
+    }
+
+    // Sort berdasarkan tanggal menggunakan timestamp untuk akurasi
+    if (historySortBy === 'newest') {
+      filtered.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    } else if (historySortBy === 'oldest') {
+      filtered.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    }
+
+    return filtered;
+  };
+
+  const handleAddToCart = (product) => {
+    // Get stock dari propsProducts (stok real)
+    const propsProduct = propsProducts?.find(p => p.id === product.id);
+    const actualStock = propsProduct?.stock || 0;
+
+    // Cek apakah stok tersedia
+    if (actualStock <= 0) {
+      setModal({
+        isOpen: true,
+        type: 'warning',
+        title: 'Stok Habis',
+        message: 'Maaf, produk ini sedang habis.',
+        actions: [{ label: 'OK', type: 'primary' }]
+      });
+      return;
+    }
+
+    const existingItem = cartItems.find(item => item.id === product.id);
+    
+    if (existingItem) {
+      // Cek apakah NEXT quantity akan melebihi stok actual
+      if (existingItem.quantity + 1 > actualStock) {
+        setModal({
+          isOpen: true,
+          type: 'warning',
+          title: 'Stok Terbatas',
+          message: `Stok ${product.name} hanya tersedia ${actualStock} pcs. Saat ini sudah ${existingItem.quantity} di keranjang.`,
+          actions: [{ label: 'OK', type: 'primary' }]
+        });
+        return;
+      }
+      setCartItems(cartItems.map(item =>
+        item.id === product.id
+          ? { ...item, quantity: item.quantity + 1 }
+          : item
+      ));
+    } else {
+      setCartItems([...cartItems, { ...product, quantity: 1 }]);
+    }
+  };
+
+  const handleRemoveFromCart = (productId) => {
+    setCartItems(cartItems.filter(item => item.id !== productId));
+  };
+
+  const handleUpdateQuantity = (productId, quantity) => {
+    // Get stock dari propsProducts (stok real)
+    const propsProduct = propsProducts?.find(p => p.id === productId);
+    const actualStock = propsProduct?.stock || 0;
+    
+    // Validasi qty tidak melebihi stok actual
+    if (quantity > actualStock) {
+      setModal({
+        isOpen: true,
+        type: 'warning',
+        title: 'Stok Terbatas',
+        message: `Stok ${propsProduct?.name} hanya tersedia ${actualStock} pcs.`,
+        actions: [{ label: 'OK', type: 'primary' }]
+      });
+      return;
+    }
+    
+    if (quantity <= 0) {
+      handleRemoveFromCart(productId);
+    } else {
+      setCartItems(cartItems.map(item =>
+        item.id === productId
+          ? { ...item, quantity }
+          : item
+      ));
+    }
+  };
+
+  const handleClearCart = () => {
+    setCartItems([]);
+  };
+
+  const handleMenuChange = (menu) => {
+    setActiveMenu(menu);
+  };
+
+  const handleLogoutClick = () => {
+    setLogoutModal(true);
+  };
+
+  const handleConfirmLogout = () => {
+    setLogoutModal(false);
+    onLogout();
+  };
+
+  const handlePlaceOrder = () => {
+    if (cartItems.length > 0) {
+      setActiveMenu('order');
+      setPaymentMethod('cash');
+      setAmountPaid('');
+      setShowQRIS(false);
+    }
+  };
+
+  const handlePaymentComplete = () => {
+    const total = Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1);
+    
+    // Update stok produk - kurangi dari propsProducts yang real
+    const updatedProducts = (propsProducts || []).map(product => {
+      const cartItem = cartItems.find(item => item.id === product.id);
+      if (cartItem) {
+        return {
+          ...product,
+          stock: Math.max(0, product.stock - cartItem.quantity)
+        };
+      }
+      return product;
+    });
+    
+    // Sinkronisasi dengan App.js state dan localStorage
+    if (setPropsProducts) {
+      setPropsProducts(updatedProducts);
+    }
+    localStorage.setItem('madura_products', JSON.stringify(updatedProducts));
+    
+    // Clear cart setelah update stok
+    setCartItems([]);
+    
+    const newTransaction = {
+      id: Date.now(),
+      outlet_id: outletId,
+      items: cartItems,
+      total: total,
+      paymentMethod: paymentMethod,
+      amountPaid: amountPaid || total,
+      change: amountPaid ? amountPaid - total : 0,
+      date: new Date().toLocaleString('id-ID'),
+      timestamp: Date.now()
+    };
+    
+    // Update local transactions state untuk HomePage history
+    setTransactions([...transactions, newTransaction]);
+    
+    // Update App.js state dan localStorage
+    const updatedTransactions = [...(propsTransactions || []), newTransaction];
+    setPropsTransactions(updatedTransactions);
+    localStorage.setItem('madura_transactions', JSON.stringify(updatedTransactions));
+    
+    setActiveMenu('history');
+    setShowQRIS(false);
+  };
+
+  // Fungsi untuk menghitung sales summary
+  const calculateSalesStats = () => {
+    if (transactions.length === 0) {
+      return {
+        totalSales: 0,
+        totalTransactions: 0,
+        totalItems: 0,
+        averageTransaction: 0
+      };
+    }
+
+    const totalSales = transactions.reduce((sum, t) => sum + t.total, 0);
+    const totalTransactions = transactions.length;
+    const totalItems = transactions.reduce((sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
+    const averageTransaction = Math.round(totalSales / totalTransactions);
+
+    return {
+      totalSales,
+      totalTransactions,
+      totalItems,
+      averageTransaction
+    };
+  };
+
+  // Fungsi untuk mendapatkan top 5 produk terlaris
+  const getTopProducts = () => {
+    const productSales = {};
+    
+    transactions.forEach(transaction => {
+      if (transaction.outlet_id !== outletId) return; // Filter by outlet
+      transaction.items.forEach(item => {
+        if (!productSales[item.id]) {
+          productSales[item.id] = {
+            id: item.id,
+            name: item.name,
+            quantity: 0,
+            revenue: 0
+          };
+        }
+        productSales[item.id].quantity += item.quantity;
+        productSales[item.id].revenue += item.price * item.quantity;
+      });
+    });
+
+    return Object.values(productSales)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 5);
+  };
+
+  // Fungsi untuk kategori performa
+  const getCategoryPerformance = () => {
+    const categoryStats = {};
+
+    products.forEach(product => {
+      if (!categoryStats[product.category]) {
+        categoryStats[product.category] = {
+          category: product.category,
+          quantity: 0,
+          revenue: 0
+        };
+      }
+    });
+
+    transactions.forEach(transaction => {
+      if (transaction.outlet_id !== outletId) return; // Filter by outlet
+      transaction.items.forEach(item => {
+        const product = products.find(p => p.id === item.id);
+        if (product && categoryStats[product.category]) {
+          categoryStats[product.category].quantity += item.quantity;
+          categoryStats[product.category].revenue += item.price * item.quantity;
+        }
+      });
+    });
+
+    return Object.values(categoryStats)
+      .sort((a, b) => b.revenue - a.revenue)
+      .filter(cat => cat.revenue > 0);
+  };
+
+  // Fungsi untuk payment method breakdown
+  const getPaymentMethodBreakdown = () => {
+    const breakdown = {
+      cash: { count: 0, total: 0 },
+      transfer: { count: 0, total: 0 },
+      ewallet: { count: 0, total: 0 }
+    };
+
+    transactions.forEach(transaction => {
+      if (transaction.outlet_id !== outletId) return; // Filter by outlet
+      const method = transaction.paymentMethod;
+      if (breakdown[method]) {
+        breakdown[method].count += 1;
+        breakdown[method].total += transaction.total;
+      }
+    });
+
+    return breakdown;
+  };
+
+  // Fungsi untuk get recent transactions
+  const getRecentTransactions = () => {
+    return [...transactions]
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .slice(0, 5);
+  };
+
+  // Fungsi untuk get greeting message
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Selamat Pagi';
+    if (hour < 17) return 'Selamat Siang';
+    return 'Selamat Malam';
+  };
+
+  // Fungsi untuk format waktu
+  const getCurrentTime = () => {
+    return new Date().toLocaleTimeString('id-ID', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  };
+
+  const getCurrentDate = () => {
+    return new Date().toLocaleDateString('id-ID', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  // Fungsi untuk filter transactions berdasarkan time period
+  const getFilteredTransactionsByPeriod = () => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStart = today.getTime();
+    const todayEnd = todayStart + (24 * 60 * 60 * 1000);
+    
+    const filtered = transactions.filter(t => {
+      const txTimestamp = t.timestamp || 0;
+      
+      // Filter berdasarkan outlet
+      if (t.outlet_id !== outletId) {
+        return false;
+      }
+      
+      if (reportTimePeriod === 'today') {
+        return txTimestamp >= todayStart && txTimestamp < todayEnd;
+      } else if (reportTimePeriod === 'week') {
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        const weekAgoStart = weekAgo.getTime();
+        return txTimestamp >= weekAgoStart && txTimestamp < todayEnd;
+      } else if (reportTimePeriod === 'month') {
+        const monthAgo = new Date(today);
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        const monthAgoStart = monthAgo.getTime();
+        return txTimestamp >= monthAgoStart && txTimestamp < todayEnd;
+      }
+      return true; // all
+    });
+
+    // Sort dari terbaru (descending) menggunakan timestamp
+    return filtered.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+  };
+
+  // Fungsi untuk get today's sales data
+  const getTodayStats = () => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStart = today.getTime();
+    const todayEnd = todayStart + (24 * 60 * 60 * 1000);
+    
+    const todayTransactions = transactions.filter(t => {
+      const txTimestamp = t.timestamp || 0;
+      return t.outlet_id === outletId && txTimestamp >= todayStart && txTimestamp < todayEnd;
+    });
+
+    const totalSales = todayTransactions.reduce((sum, t) => sum + t.total, 0);
+    const totalTransactions = todayTransactions.length;
+    const totalItems = todayTransactions.reduce((sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
+    const avgTransaction = totalTransactions > 0 ? Math.round(totalSales / totalTransactions) : 0;
+
+    return { totalSales, totalTransactions, totalItems, avgTransaction, todayTransactions };
+  };
+
+  // Fungsi untuk get yesterday's sales for comparison
+  const getYesterdayStats = () => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStart = yesterday.getTime();
+    const yesterdayEnd = yesterdayStart + (24 * 60 * 60 * 1000);
+    
+    const yesterdayTransactions = transactions.filter(t => {
+      const txTimestamp = t.timestamp || 0;
+      return t.outlet_id === outletId && txTimestamp >= yesterdayStart && txTimestamp < yesterdayEnd;
+    });
+
+    return yesterdayTransactions.reduce((sum, t) => sum + t.total, 0);
+  };
+
+  // Fungsi untuk get growth percentage
+  const getGrowthPercentage = () => {
+    const today = getTodayStats().totalSales;
+    const yesterday = getYesterdayStats();
+    
+    if (yesterday === 0) {
+      return today > 0 ? 100 : 0;
+    }
+    
+    return Math.round(((today - yesterday) / yesterday) * 100);
+  };
+
+  // Fungsi untuk get best performing hour
+  const getBestSellingTime = () => {
+    const hourStats = {};
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStart = today.getTime();
+    const todayEnd = todayStart + (24 * 60 * 60 * 1000);
+    
+    transactions.forEach(t => {
+      const txTimestamp = t.timestamp || 0;
+      if (t.outlet_id === outletId && txTimestamp >= todayStart && txTimestamp < todayEnd) {
+        const hour = new Date(txTimestamp).getHours();
+        if (!hourStats[hour]) {
+          hourStats[hour] = { hour, count: 0, total: 0 };
+        }
+        hourStats[hour].count += 1;
+        hourStats[hour].total += t.total;
+      }
+    });
+
+    if (Object.keys(hourStats).length === 0) {
+      return null;
+    }
+
+    const best = Object.values(hourStats).reduce((max, curr) => 
+      curr.count > max.count ? curr : max
+    );
+
+    return best;
+  };
+
+  // Fungsi untuk get daily breakdown (last 7 days)
+  const getDailyBreakdown = () => {
+    const days = {};
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // Initialize last 7 days
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateKey = date.toLocaleDateString('id-ID', { weekday: 'short', month: 'short', day: 'numeric' });
+      days[dateKey] = { date, sales: 0, count: 0 };
+    }
+
+    // Aggregate transactions menggunakan timestamp
+    transactions.forEach(t => {
+      if (t.outlet_id !== outletId) return; // Filter by outlet
+      
+      const txTimestamp = t.timestamp || 0;
+      const txDate = new Date(txTimestamp);
+      const txDateOnly = new Date(txDate.getFullYear(), txDate.getMonth(), txDate.getDate());
+      
+      for (let i = 6; i >= 0; i--) {
+        const checkDate = new Date(today);
+        checkDate.setDate(checkDate.getDate() - i);
+        
+        if (txDateOnly.getTime() === checkDate.getTime()) {
+          const dateKey = checkDate.toLocaleDateString('id-ID', { weekday: 'short', month: 'short', day: 'numeric' });
+          days[dateKey].sales += t.total;
+          days[dateKey].count += 1;
+          break;
+        }
+      }
+    });
+
+    return Object.values(days);
+  };
+
+  // Fungsi untuk download receipt ke PDF
+  const downloadReceiptPDF = (transaction) => {
+    try {
+      const doc = new jsPDF('p', 'mm', [80, 200]); // Ukuran thermal receipt (80mm)
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let yPosition = 10;
+      const margin = 5;
+
+      // Header
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.text('MADURA MART', pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 8;
+
+      // Receipt Info
+      doc.setFontSize(8);
+      doc.setFont(undefined, 'normal');
+      doc.text(`Receipt #${transaction.id}`, pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 4;
+      doc.text(`${transaction.date}`, pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 7;
+
+      // Separator line
+      doc.setDrawColor(0);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 5;
+
+      // Items header
+      doc.setFontSize(7);
+      doc.setFont(undefined, 'bold');
+      doc.text('Item', margin, yPosition);
+      doc.text('Qty', margin + 40, yPosition);
+      doc.text('Harga', pageWidth - margin - 2, yPosition, { align: 'right' });
+      yPosition += 3;
+
+      // Separator line sebelum items
+      doc.setDrawColor(150);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 4;
+
+      // Items
+      doc.setFontSize(7);
+      doc.setFont(undefined, 'normal');
+      transaction.items.forEach(item => {
+        const maxNameWidth = 30;
+        const itemName = item.name.length > maxNameWidth ? item.name.substring(0, maxNameWidth - 2) + '..' : item.name;
+        
+        // Nama produk (kiri)
+        doc.text(itemName, margin, yPosition);
+        
+        // Quantity (tengah) - centered
+        doc.text(`x${item.quantity}`, margin + 40, yPosition, { align: 'center' });
+        
+        // Harga (kanan) - right aligned
+        const priceStr = `Rp ${(item.price * item.quantity).toLocaleString('id-ID')}`;
+        doc.text(priceStr, pageWidth - margin - 2, yPosition, { align: 'right' });
+        
+        yPosition += 4;
+      });
+
+      // Separator line setelah items
+      yPosition += 1;
+      doc.setDrawColor(100);
+      doc.setLineDash([1, 1]);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      doc.setLineDash([]);
+      yPosition += 5;
+
+      // Summary
+      doc.setFontSize(8);
+      doc.setFont(undefined, 'normal');
+      
+      const subtotal = Math.round(transaction.total / 1.1);
+      const tax = Math.round(transaction.total * 0.1 / 1.1);
+      
+      doc.text('Subtotal:', margin, yPosition);
+      doc.text(`Rp ${subtotal.toLocaleString('id-ID')}`, pageWidth - margin - 2, yPosition, { align: 'right' });
+      yPosition += 4;
+      
+      doc.text('Pajak (10%):', margin, yPosition);
+      doc.text(`Rp ${tax.toLocaleString('id-ID')}`, pageWidth - margin - 2, yPosition, { align: 'right' });
+      yPosition += 4;
+
+      // Separator line
+      doc.setDrawColor(0);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 5;
+
+      // Total - dengan alignment konsisten
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'bold');
+      doc.text('TOTAL:', margin, yPosition);
+      doc.text(`Rp ${transaction.total.toLocaleString('id-ID')}`, pageWidth - margin - 2, yPosition, { align: 'right' });
+      yPosition += 7;
+
+      // Payment Method
+      if (transaction.change > 0) {
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'normal');
+        doc.text('Kembalian:', margin, yPosition);
+        doc.text(`Rp ${transaction.change.toLocaleString('id-ID')}`, pageWidth - margin - 2, yPosition, { align: 'right' });
+        yPosition += 5;
+      }
+
+      // Payment method
+      yPosition += 3;
+      doc.setFontSize(8);
+      const methodLabel = {
+        'cash': 'Pembayaran: Tunai',
+        'transfer': 'Pembayaran: Transfer Bank',
+        'ewallet': 'Pembayaran: E-Wallet'
+      }[transaction.paymentMethod];
+      doc.text(methodLabel, pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 6;
+
+      // Separator line
+      doc.setDrawColor(100);
+      doc.setLineDash([1, 1]);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      doc.setLineDash([]);
+      yPosition += 6;
+
+      // Footer
+      doc.setFontSize(7);
+      doc.setFont(undefined, 'italic');
+      doc.text('Terima kasih atas pembelian Anda', pageWidth / 2, yPosition, { align: 'center' });
+      yPosition += 3;
+      doc.text('Madura Mart - Setiap Hari Melayani', pageWidth / 2, yPosition, { align: 'center' });
+
+      // Save PDF
+      doc.save(`Receipt_${transaction.id}.pdf`);
+    } catch (error) {
+      console.error('Error generating receipt PDF:', error);
+      setModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Gagal Membuat PDF',
+        message: 'Error: ' + error.message,
+        actions: [{ label: 'OK', type: 'primary' }]
+      });
+    }
+  };
+
+  // Fungsi untuk cetak receipt
+  const printReceipt = (transaction) => {
+    try {
+      const printWindow = window.open('', '_blank');
+      const subtotal = Math.round(transaction.total / 1.1);
+      const tax = Math.round(transaction.total * 0.1 / 1.1);
+
+      const itemsHTML = transaction.items.map(item => `
+        <tr>
+          <td>${item.name}</td>
+          <td style="text-align: center;">x${item.quantity}</td>
+          <td style="text-align: right;">Rp ${(item.price * item.quantity).toLocaleString('id-ID')}</td>
+        </tr>
+      `).join('');
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Receipt #${transaction.id}</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              width: 80mm;
+              margin: 0 auto;
+              padding: 10mm;
+              background: white;
+            }
+            .receipt-header {
+              text-align: center;
+              margin-bottom: 10mm;
+              border-bottom: 2px solid #000;
+              padding-bottom: 5mm;
+            }
+            .receipt-header h1 {
+              margin: 0;
+              font-size: 16px;
+              font-weight: bold;
+            }
+            .receipt-header p {
+              margin: 2px 0;
+              font-size: 10px;
+            }
+            .receipt-info {
+              font-size: 9px;
+              margin-bottom: 8mm;
+              border-bottom: 1px dashed #999;
+              padding-bottom: 5mm;
+            }
+            .receipt-info p {
+              margin: 2px 0;
+            }
+            .receipt-items {
+              margin: 5mm 0;
+              border-bottom: 1px solid #000;
+              padding-bottom: 5mm;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              font-size: 9px;
+            }
+            table th {
+              border-bottom: 1px solid #000;
+              padding: 3px 0;
+              text-align: left;
+              font-weight: bold;
+            }
+            table td {
+              padding: 3px 2px;
+            }
+            .receipt-summary {
+              margin: 5mm 0;
+              font-size: 10px;
+              border-bottom: 1px solid #000;
+              padding-bottom: 5mm;
+            }
+            .summary-row {
+              display: flex;
+              justify-content: space-between;
+              margin: 3px 0;
+            }
+            .total-row {
+              font-weight: bold;
+              font-size: 12px;
+              margin-top: 5px;
+              display: flex;
+              justify-content: space-between;
+            }
+            .receipt-footer {
+              text-align: center;
+              font-size: 8px;
+              margin-top: 8mm;
+              color: #666;
+            }
+            @media print {
+              body {
+                margin: 0;
+                padding: 5mm;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="receipt-header">
+            <h1>MADURA MART</h1>
+            <p>Receipt #${transaction.id}</p>
+            <p>${transaction.date}</p>
+          </div>
+
+          <div class="receipt-info">
+            <p><strong>Metode Pembayaran:</strong></p>
+            <p>${
+              transaction.paymentMethod === 'cash' ? 'Tunai' :
+              transaction.paymentMethod === 'transfer' ? 'Transfer Bank' :
+              'E-Wallet'
+            }</p>
+          </div>
+
+          <div class="receipt-items">
+            <table>
+              <thead>
+                <tr>
+                  <th>Produk</th>
+                  <th style="text-align: center;">Qty</th>
+                  <th style="text-align: right;">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsHTML}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="receipt-summary">
+            <div class="summary-row">
+              <span>Subtotal:</span>
+              <span>Rp ${subtotal.toLocaleString('id-ID')}</span>
+            </div>
+            <div class="summary-row">
+              <span>Pajak (10%):</span>
+              <span>Rp ${tax.toLocaleString('id-ID')}</span>
+            </div>
+            <div class="total-row">
+              <span>TOTAL:</span>
+              <span>Rp ${transaction.total.toLocaleString('id-ID')}</span>
+            </div>
+            ${transaction.change > 0 ? `
+            <div class="summary-row" style="margin-top: 5px;">
+              <span>Kembalian:</span>
+              <span>Rp ${transaction.change.toLocaleString('id-ID')}</span>
+            </div>
+            ` : ''}
+          </div>
+
+          <div class="receipt-footer">
+            <p>Terima kasih atas pembelian Anda</p>
+            <p>Madura Mart - Setiap Hari Melayani</p>
+          </div>
+        </body>
+        </html>
+      `;
+
+      printWindow.document.write(html);
+      printWindow.document.close();
+      
+      // Tunggu sebentar sebelum print
+      setTimeout(() => {
+        printWindow.print();
+      }, 250);
+    } catch (error) {
+      console.error('Error printing receipt:', error);
+      setModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Gagal Mencetak Receipt',
+        message: 'Error: ' + error.message,
+        actions: [{ label: 'OK', type: 'primary' }]
+      });
+    }
+  };
+
+  // Fungsi untuk export report ke PDF
+  const exportReportToPDF = () => {
+    try {
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let yPosition = 15;
+      const margin = 15;
+      const lineHeight = 7;
+      const maxWidth = pageWidth - (margin * 2);
+
+      // Fungsi helper untuk wrap text
+      const addWrappedText = (text, x, y, fontSize, fontStyle = 'normal', maxW = maxWidth) => {
+        doc.setFontSize(fontSize);
+        doc.setFont(undefined, fontStyle);
+        const lines = doc.splitTextToSize(text, maxW);
+        doc.text(lines, x, y);
+        return y + (lines.length * lineHeight);
+      };
+
+      // Fungsi helper untuk membuat garis separator
+      const drawLine = (y) => {
+        doc.setDrawColor(200);
+        doc.line(margin, y, pageWidth - margin, y);
+        return y + 5;
+      };
+
+      // Header
+      yPosition = addWrappedText('LAPORAN PENJUALAN', pageWidth / 2, yPosition, 18, 'bold', maxWidth);
+      yPosition += 5;
+
+      // Tanggal dan Periode
+      yPosition = addWrappedText(`Tanggal: ${new Date().toLocaleDateString('id-ID')}`, pageWidth / 2, yPosition, 10);
+      
+      const periodLabel = {
+        'today': 'Periode: Hari Ini',
+        'week': 'Periode: 7 Hari Terakhir',
+        'month': 'Periode: 30 Hari Terakhir',
+        'all': 'Periode: Semua Waktu'
+      }[reportTimePeriod];
+      
+      yPosition = addWrappedText(periodLabel, pageWidth / 2, yPosition, 10);
+      yPosition += 5;
+      yPosition = drawLine(yPosition);
+
+      const filteredData = getFilteredTransactionsByPeriod();
+      
+      if (filteredData.length === 0) {
+        yPosition = addWrappedText('Belum ada data transaksi untuk periode ini', margin, yPosition, 11);
+        doc.save(`Laporan_Penjualan_${new Date().getTime()}.pdf`);
+        return;
+      }
+
+      // Summary Cards Data
+      const totalSales = filteredData.reduce((sum, t) => sum + t.total, 0);
+      const totalTransactions = filteredData.length;
+      const totalItems = filteredData.reduce((sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
+      const avgTransaction = Math.round(totalSales / totalTransactions);
+
+      // Summary Section
+      yPosition = addWrappedText('RINGKASAN PENJUALAN', margin, yPosition, 11, 'bold');
+      yPosition += 3;
+
+      const summaryData = [
+        ['Total Penjualan', `Rp ${totalSales.toLocaleString('id-ID')}`],
+        ['Total Transaksi', `${totalTransactions}`],
+        ['Total Item Terjual', `${totalItems}`],
+        ['Rata-rata Transaksi', `Rp ${avgTransaction.toLocaleString('id-ID')}`]
+      ];
+
+      summaryData.forEach(([label, value]) => {
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        doc.text(`${label}: `, margin, yPosition);
+        doc.setFont(undefined, 'bold');
+        doc.text(`${value}`, pageWidth - margin - 40, yPosition, { align: 'right' });
+        yPosition += 6;
+      });
+
+      yPosition += 5;
+      yPosition = drawLine(yPosition);
+
+      // Payment Method Breakdown
+      yPosition = addWrappedText('METODE PEMBAYARAN', margin, yPosition, 11, 'bold');
+      yPosition += 3;
+
+      const breakdown = { cash: { count: 0, total: 0 }, transfer: { count: 0, total: 0 }, ewallet: { count: 0, total: 0 } };
+      filteredData.forEach(t => {
+        const method = t.paymentMethod;
+        if (breakdown[method]) {
+          breakdown[method].count += 1;
+          breakdown[method].total += t.total;
+        }
+      });
+
+      const paymentMethods = [
+        { name: 'Tunai', data: breakdown.cash },
+        { name: 'Transfer', data: breakdown.transfer },
+        { name: 'E-Wallet', data: breakdown.ewallet }
+      ];
+
+      paymentMethods.forEach(({ name, data }) => {
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'normal');
+        doc.text(`${name}: `, margin, yPosition);
+        doc.text(`${data.count} transaksi`, margin + 40, yPosition);
+        doc.setFont(undefined, 'bold');
+        doc.text(`Rp ${data.total.toLocaleString('id-ID')}`, pageWidth - margin - 30, yPosition, { align: 'right' });
+        yPosition += 6;
+      });
+
+      yPosition += 5;
+
+      // Check if we need new page
+      if (yPosition > pageHeight - 60) {
+        doc.addPage();
+        yPosition = 15;
+      }
+
+      yPosition = drawLine(yPosition);
+
+      // Top Products
+      yPosition = addWrappedText('PRODUK TERLARIS (Top 5)', margin, yPosition, 11, 'bold');
+      yPosition += 3;
+
+      const productSales = {};
+      filteredData.forEach(transaction => {
+        transaction.items.forEach(item => {
+          if (!productSales[item.id]) {
+            productSales[item.id] = {
+              id: item.id,
+              name: item.name,
+              quantity: 0,
+              revenue: 0
+            };
+          }
+          productSales[item.id].quantity += item.quantity;
+          productSales[item.id].revenue += item.price * item.quantity;
+        });
+      });
+
+      const topProducts = Object.values(productSales)
+        .sort((a, b) => b.quantity - a.quantity)
+        .slice(0, 5);
+
+      topProducts.forEach((product, idx) => {
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'normal');
+        const productInfo = `${idx + 1}. ${product.name} (${product.quantity}x)`;
+        doc.text(productInfo, margin, yPosition);
+        doc.setFont(undefined, 'bold');
+        doc.text(`Rp ${product.revenue.toLocaleString('id-ID')}`, pageWidth - margin - 30, yPosition, { align: 'right' });
+        yPosition += 5;
+      });
+
+      yPosition += 5;
+
+      // Check if we need new page
+      if (yPosition > pageHeight - 60) {
+        doc.addPage();
+        yPosition = 15;
+      }
+
+      yPosition = drawLine(yPosition);
+
+      // Daftar Produk Terjual (untuk kebutuhan restock)
+      yPosition = addWrappedText('DAFTAR PRODUK TERJUAL', margin, yPosition, 11, 'bold');
+      yPosition += 2;
+      yPosition = addWrappedText('(Untuk Restock)', margin, yPosition, 8, 'italic');
+      yPosition += 3;
+
+      // Gunakan productSales yang sudah dihitung sebelumnya
+      const allProducts = Object.values(productSales)
+        .sort((a, b) => b.quantity - a.quantity);
+
+      if (allProducts.length > 0) {
+        // Header untuk tabel
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'bold');
+        doc.text('No', margin, yPosition);
+        doc.text('Nama Produk', margin + 10, yPosition);
+        doc.text('Qty', margin + 90, yPosition);
+        doc.text('Revenue', pageWidth - margin - 30, yPosition, { align: 'right' });
+        yPosition += 6;
+
+        // Garis pemisah
+        doc.setDrawColor(220);
+        doc.line(margin, yPosition - 2, pageWidth - margin, yPosition - 2);
+        yPosition += 3;
+
+        // Daftar produk
+        allProducts.forEach((product, idx) => {
+          doc.setFontSize(8);
+          doc.setFont(undefined, 'normal');
+          
+          // Nomor
+          doc.text(`${idx + 1}`, margin, yPosition);
+          
+          // Nama produk (wrap jika terlalu panjang)
+          const productName = product.name.length > 50 ? product.name.substring(0, 50) + '...' : product.name;
+          doc.text(productName, margin + 10, yPosition);
+          
+          // Quantity
+          doc.text(`${product.quantity}x`, margin + 90, yPosition);
+          
+          // Revenue
+          doc.setFont(undefined, 'bold');
+          doc.text(`Rp ${product.revenue.toLocaleString('id-ID')}`, pageWidth - margin - 30, yPosition, { align: 'right' });
+          
+          yPosition += 5;
+
+          // Check if we need new page
+          if (yPosition > pageHeight - 30) {
+            doc.addPage();
+            yPosition = 15;
+            
+            // Ulangi header di halaman baru
+            doc.setFontSize(8);
+            doc.setFont(undefined, 'bold');
+            doc.text('No', margin, yPosition);
+            doc.text('Nama Produk', margin + 10, yPosition);
+            doc.text('Qty', margin + 90, yPosition);
+            doc.text('Revenue', pageWidth - margin - 30, yPosition, { align: 'right' });
+            yPosition += 6;
+            doc.setDrawColor(220);
+            doc.line(margin, yPosition - 2, pageWidth - margin, yPosition - 2);
+            yPosition += 3;
+          }
+        });
+      } else {
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'normal');
+        doc.text('Tidak ada data produk terjual', margin, yPosition);
+        yPosition += 5;
+      }
+
+      yPosition += 10;
+      yPosition = drawLine(yPosition);
+
+      // Footer
+      doc.setFontSize(7);
+      doc.setFont(undefined, 'italic');
+      doc.setTextColor(150);
+      const footerText = `Dokumen ini di-generate otomatis oleh Madura Mart POS System pada ${new Date().toLocaleString('id-ID')}`;
+      const footerLines = doc.splitTextToSize(footerText, maxWidth);
+      doc.text(footerLines, pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+      // Reset text color
+      doc.setTextColor(0);
+
+      // Save PDF
+      doc.save(`Laporan_Penjualan_${new Date().getTime()}.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      setModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Gagal Membuat PDF Report',
+        message: 'Error: ' + error.message,
+        actions: [{ label: 'OK', type: 'primary' }]
+      });
+    }
+  };
+
+  return (
+    <div className="home-container">
+      <AlertModal
+        isOpen={modal.isOpen}
+        type={modal.type}
+        title={modal.title}
+        message={modal.message}
+        actions={modal.actions}
+        onClose={() => setModal({ ...modal, isOpen: false })}
+      />
+
+      {/* Logout Confirmation Modal */}
+      <AlertModal
+        isOpen={logoutModal}
+        type="warning"
+        title="Konfirmasi Keluar"
+        message="Apakah Anda yakin ingin keluar dari aplikasi?"
+        onClose={() => setLogoutModal(false)}
+        actions={[
+          {
+            label: 'Batal',
+            type: 'secondary',
+            onClick: () => setLogoutModal(false)
+          },
+          {
+            label: 'Keluar',
+            type: 'primary',
+            onClick: handleConfirmLogout
+          }
+        ]}
+      />
+
+      {/* Sidebar Overlay for Mobile/Tablet */}
+      {showSidebar && (
+        <div className="sidebar-overlay" onClick={() => setShowSidebar(false)} />
+      )}
+
+      {/* Sidebar Navigation - Desktop */}
+      <Sidebar activeMenu={activeMenu} onMenuChange={(menu) => { handleMenuChange(menu); setShowSidebar(false); }} onLogout={handleLogoutClick} />
+
+      {/* Sidebar Navigation - Mobile/Tablet Overlay */}
+      <div className={`sidebar-wrapper ${showSidebar ? 'show' : ''}`}>
+        <Sidebar activeMenu={activeMenu} onMenuChange={(menu) => { handleMenuChange(menu); setShowSidebar(false); }} onLogout={handleLogoutClick} />
+      </div>
+
+      {/* Main Content */}
+      <div className="main-wrapper">
+        {/* Mobile Header with Toggle */}
+        <div className="mobile-header">
+          <button className="toggle-sidebar-btn" onClick={() => setShowSidebar(!showSidebar)}>
+            ☰ Menu
+          </button>
+          <h1 className="mobile-title">Madura Mart</h1>
+          {/* Cart Button - Only show when in menu (kasir) feature */}
+          {activeMenu === 'menu' && (
+            <button className="toggle-cart-btn" onClick={() => setShowCartSidebar(!showCartSidebar)}>
+              🛒 ({cartItems.length})
+            </button>
+          )}
+          {/* Spacer when cart button is hidden */}
+          {activeMenu !== 'menu' && (
+            <div style={{ width: '60px' }}></div>
+          )}
+        </div>
+
+        {/* Cart Overlay for Mobile/Tablet - Only show in menu feature */}
+        {showCartSidebar && activeMenu === 'menu' && (
+          <div className="cart-overlay" onClick={() => setShowCartSidebar(false)} />
+        )}
+
+        {/* Content Area */}
+        <div className="home-content">
+          {/* Home Section - Empty Placeholder */}
+          {activeMenu === 'home' && (
+            <div className="home-dashboard">
+              {/* Welcome Section */}
+              <div className="welcome-section">
+                <div className="welcome-header">
+                  <div className="welcome-text">
+                    <h1>{getGreeting()}, Kasir! 👋</h1>
+                    <p className="welcome-subtitle">Selamat datang di Madura Mart POS System</p>
+                  </div>
+                  <div className="welcome-time">
+                    <div className="time-display">{currentTime}</div>
+                    <div className="date-display">{currentDate}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Today's Performance Section */}
+              {transactions.length > 0 && (
+                <div className="todays-performance">
+                  <h3>📊 Performa Hari Ini</h3>
+                  <div className="performance-grid">
+                    <div className="perf-card sales">
+                      <div className="perf-icon">💰</div>
+                      <div className="perf-content">
+                        <p className="perf-label">Total Penjualan</p>
+                        <p className="perf-value">Rp {getTodayStats().totalSales.toLocaleString('id-ID')}</p>
+                        <p className={`perf-growth ${getGrowthPercentage() >= 0 ? 'positive' : 'negative'}`}>
+                          {getGrowthPercentage() > 0 ? '↑' : getGrowthPercentage() < 0 ? '↓' : '→'} {Math.abs(getGrowthPercentage())}% vs kemarin
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="perf-card transactions">
+                      <div className="perf-icon">📦</div>
+                      <div className="perf-content">
+                        <p className="perf-label">Transaksi</p>
+                        <p className="perf-value">{getTodayStats().totalTransactions}</p>
+                        <p className="perf-meta">transaksi</p>
+                      </div>
+                    </div>
+
+                    <div className="perf-card items">
+                      <div className="perf-icon">🛍️</div>
+                      <div className="perf-content">
+                        <p className="perf-label">Items Terjual</p>
+                        <p className="perf-value">{getTodayStats().totalItems}</p>
+                        <p className="perf-meta">produk</p>
+                      </div>
+                    </div>
+
+                    <div className="perf-card average">
+                      <div className="perf-icon">📈</div>
+                      <div className="perf-content">
+                        <p className="perf-label">Rata-rata</p>
+                        <p className="perf-value">Rp {getTodayStats().avgTransaction.toLocaleString('id-ID')}</p>
+                        <p className="perf-meta">per transaksi</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Best Selling Time */}
+              {getBestSellingTime() && (
+                <div className="best-time-section">
+                  <h3>⏰ Jam Paling Sibuk</h3>
+                  <div className="best-time-card">
+                    <div className="time-info">
+                      <p className="time-label">Waktu Puncak:</p>
+                      <p className="time-value">{String(getBestSellingTime().hour).padStart(2, '0')}:00 - {String(getBestSellingTime().hour + 1).padStart(2, '0')}:00</p>
+                    </div>
+                    <div className="time-stats">
+                      <div className="stat">
+                        <span className="stat-label">Transaksi:</span>
+                        <span className="stat-value">{getBestSellingTime().count}x</span>
+                      </div>
+                      <div className="stat">
+                        <span className="stat-label">Revenue:</span>
+                        <span className="stat-value">Rp {getBestSellingTime().total.toLocaleString('id-ID')}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Daily Breakdown (7 days) */}
+              {transactions.length > 0 && (
+                <div className="daily-breakdown-section">
+                  <h3>📅 Performa 7 Hari Terakhir</h3>
+                  <div className="daily-breakdown-list">
+                    {getDailyBreakdown().map((day, idx) => {
+                      const maxSales = Math.max(...getDailyBreakdown().map(d => d.sales), 1);
+                      const percentage = (day.sales / maxSales) * 100;
+                      return (
+                        <div key={idx} className="daily-item">
+                          <div className="daily-date">{day.date.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' })}</div>
+                          <div className="daily-chart">
+                            <div className="bar-container">
+                              <div className="bar" style={{ height: `${Math.max(percentage, 5)}%` }}></div>
+                            </div>
+                          </div>
+                          <div className="daily-stats">
+                            <p className="daily-sales">Rp {day.sales.toLocaleString('id-ID')}</p>
+                            <p className="daily-count">{day.count} tx</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Quick Action Buttons */}
+              <div className="quick-actions">
+                <h3>Aksi Cepat</h3>
+                <div className="actions-grid">
+                  <button 
+                    className="action-btn start-transaction"
+                    onClick={() => setActiveMenu('menu')}
+                  >
+                    <span className="btn-icon">🛒</span>
+                    <span className="btn-label">Mulai Transaksi</span>
+                    <span className="btn-arrow">→</span>
+                  </button>
+                  <button 
+                    className="action-btn view-history"
+                    onClick={() => setActiveMenu('history')}
+                  >
+                    <span className="btn-icon">📜</span>
+                    <span className="btn-label">Lihat Riwayat</span>
+                    <span className="btn-arrow">→</span>
+                  </button>
+                  <button 
+                    className="action-btn view-report"
+                    onClick={() => setActiveMenu('report')}
+                  >
+                    <span className="btn-icon">📊</span>
+                    <span className="btn-label">Laporan Penjualan</span>
+                    <span className="btn-arrow">→</span>
+                  </button>
+                  <button 
+                    className="action-btn logout-btn"
+                    onClick={handleLogoutClick}
+                  >
+                    <span className="btn-icon">🚪</span>
+                    <span className="btn-label">Keluar</span>
+                    <span className="btn-arrow">→</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Tips & Info */}
+              <div className="tips-section">
+                <h3>💡 Tips Penggunaan</h3>
+                <div className="tips-grid">
+                  <div className="tip-card">
+                    <div className="tip-number">1</div>
+                    <div className="tip-content">
+                      <p className="tip-title">Mulai Transaksi</p>
+                      <p className="tip-desc">Klik "Mulai Transaksi" atau pilih menu di sidebar untuk membuka daftar produk</p>
+                    </div>
+                  </div>
+                  <div className="tip-card">
+                    <div className="tip-number">2</div>
+                    <div className="tip-content">
+                      <p className="tip-title">Pilih Produk</p>
+                      <p className="tip-desc">Cari produk menggunakan search bar, filter kategori, atau urutkan sesuai kebutuhan</p>
+                    </div>
+                  </div>
+                  <div className="tip-card">
+                    <div className="tip-number">3</div>
+                    <div className="tip-content">
+                      <p className="tip-title">Selesaikan Pembayaran</p>
+                      <p className="tip-desc">Pilih metode pembayaran (Tunai, Transfer, atau E-Wallet) dan selesaikan transaksi</p>
+                    </div>
+                  </div>
+                  <div className="tip-card">
+                    <div className="tip-number">4</div>
+                    <div className="tip-content">
+                      <p className="tip-title">Lihat Laporan</p>
+                      <p className="tip-desc">Pantau performa penjualan di menu Laporan dengan berbagai statistik detail</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Menu Section - Products with Cart */}
+          {activeMenu === 'menu' && (
+            <div className="menu-content">
+              <div className="products-section">
+                <div className="products-header">
+                  <h2>Daftar Produk</h2>
+                  <p className="products-count">Total: {getFilteredProducts().length} produk</p>
+                </div>
+
+                {/* Search Bar dan Sort */}
+                <div className="search-filter-bar">
+                  <div className="search-wrapper">
+                    <input
+                      type="text"
+                      className="search-input"
+                      placeholder="🔍 Cari produk..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                  <select
+                    className="sort-select"
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                  >
+                    <option value="name">↑↓ Nama</option>
+                    <option value="price-low">💰 Harga Terendah</option>
+                    <option value="price-high">💰 Harga Tertinggi</option>
+                  </select>
+                </div>
+
+                {/* Category Tabs */}
+                <div className="category-tabs">
+                  {categories.map(category => (
+                    <button
+                      key={category}
+                      className={`category-tab ${selectedCategory === category ? 'active' : ''}`}
+                      onClick={() => setSelectedCategory(category)}
+                    >
+                      {category}
+                    </button>
+                  ))}
+                </div>
+                
+                <div className="products-grid">
+                  {getFilteredProducts().map(product => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      onAddToCart={handleAddToCart}
+                      onUpdateQuantity={handleUpdateQuantity}
+                      cartItems={cartItems}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Cart Sidebar for Desktop - Always visible on desktop */}
+              <div className="cart-desktop">
+                <Cart
+                  items={cartItems}
+                  onRemoveItem={handleRemoveFromCart}
+                  onUpdateQuantity={handleUpdateQuantity}
+                  onClearCart={handleClearCart}
+                  onPlaceOrder={handlePlaceOrder}
+                />
+              </div>
+
+              {/* Cart Sidebar for Mobile/Tablet - Overlay, toggled */}
+              <div className={`cart-wrapper ${showCartSidebar ? 'show' : ''}`}>
+                <Cart
+                  items={cartItems}
+                  onRemoveItem={handleRemoveFromCart}
+                  onUpdateQuantity={handleUpdateQuantity}
+                  onClearCart={handleClearCart}
+                  onPlaceOrder={handlePlaceOrder}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Order Section */}
+          {activeMenu === 'order' && (
+            <div className="order-section">
+              <div className="order-container">
+                <h2>Konfirmasi Pesanan</h2>
+                {cartItems.length > 0 ? (
+                  <div className="order-content">
+                    <div className="order-items">
+                      <h3>Daftar Barang:</h3>
+                      {cartItems.map(item => (
+                        <div key={item.id} className="order-item">
+                          <div className="order-item-image">
+                            <img src={item.image} alt={item.name} />
+                          </div>
+                          <div className="order-item-info">
+                            <h4>{item.name}</h4>
+                            <p className="order-item-price">Rp {item.price.toLocaleString('id-ID')}</p>
+                            <p className="order-item-qty">Qty: {item.quantity}</p>
+                          </div>
+                          <div className="order-item-total">
+                            Rp {(item.price * item.quantity).toLocaleString('id-ID')}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="payment-section">
+                      <div className="payment-summary">
+                        <div className="summary-row">
+                          <span>Subtotal:</span>
+                          <span>Rp {cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0).toLocaleString('id-ID')}</span>
+                        </div>
+                        <div className="summary-row">
+                          <span>Pajak (10%):</span>
+                          <span>Rp {Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 0.1).toLocaleString('id-ID')}</span>
+                        </div>
+                        <div className="summary-row total">
+                          <span>Total:</span>
+                          <span>Rp {Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1).toLocaleString('id-ID')}</span>
+                        </div>
+                      </div>
+
+                      <div className="payment-method">
+                        <label>Metode Pembayaran:</label>
+                        <select 
+                          value={paymentMethod}
+                          onChange={(e) => {
+                            setPaymentMethod(e.target.value);
+                            setAmountPaid('');
+                            setShowQRIS(false);
+                          }}
+                        >
+                          <option value="cash">Tunai</option>
+                          <option value="transfer">Transfer Bank</option>
+                          <option value="ewallet">E-Wallet</option>
+                        </select>
+                      </div>
+
+                      {/* Pembayaran Tunai */}
+                      {paymentMethod === 'cash' && (
+                        <div className="payment-cash">
+                          <h4>Pilih Nominal atau Isi Manual</h4>
+                          <div className="nominal-buttons">
+                            <button className="nominal-btn" onClick={() => setAmountPaid(5000)}>Rp 5.000</button>
+                            <button className="nominal-btn" onClick={() => setAmountPaid(10000)}>Rp 10.000</button>
+                            <button className="nominal-btn" onClick={() => setAmountPaid(20000)}>Rp 20.000</button>
+                            <button className="nominal-btn" onClick={() => setAmountPaid(50000)}>Rp 50.000</button>
+                            <button className="nominal-btn" onClick={() => setAmountPaid(100000)}>Rp 100.000</button>
+                          </div>
+                          <div className="manual-input-cash">
+                            <label>Atau isi manual:</label>
+                            <input
+                              type="number"
+                              value={amountPaid}
+                              onChange={(e) => setAmountPaid(parseInt(e.target.value) || '')}
+                              placeholder="Masukkan nominal..."
+                            />
+                          </div>
+                          {amountPaid && (
+                            <div className="cash-calculation">
+                              <div className="calc-row">
+                                <span>Total:</span>
+                                <span>Rp {Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1).toLocaleString('id-ID')}</span>
+                              </div>
+                              <div className="calc-row">
+                                <span>Uang Masuk:</span>
+                                <span>Rp {parseInt(amountPaid).toLocaleString('id-ID')}</span>
+                              </div>
+                              <div className={`calc-row total ${amountPaid >= Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1) ? 'valid' : 'invalid'}`}>
+                                <span>Kembalian:</span>
+                                <span>Rp {Math.max(0, parseInt(amountPaid) - Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1)).toLocaleString('id-ID')}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Pembayaran Transfer */}
+                      {paymentMethod === 'transfer' && (
+                        <div className="payment-transfer">
+                          <h4>Rekening Transfer</h4>
+                          <div className="bank-card">
+                            <div className="bank-header">
+                              <img src="https://images.unsplash.com/photo-1633356122544-f134ef2944f0?w=100&h=100&fit=crop" alt="Bank" className="bank-logo" />
+                              <div className="bank-info">
+                                <h5>Bank BCA</h5>
+                                <p>PT Madura Mart</p>
+                              </div>
+                            </div>
+                            <div className="bank-details">
+                              <div className="detail-row">
+                                <span>No. Rekening:</span>
+                                <span className="account-number">1234567890</span>
+                              </div>
+                              <div className="detail-row">
+                                <span>Atas Nama:</span>
+                                <span>Madura Mart Store</span>
+                              </div>
+                              <div className="detail-row amount">
+                                <span>Jumlah Transfer:</span>
+                                <span>Rp {Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1).toLocaleString('id-ID')}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Pembayaran E-Wallet */}
+                      {paymentMethod === 'ewallet' && (
+                        <div className="payment-ewallet">
+                          {!showQRIS ? (
+                            <div>
+                              <p className="qris-info">Klik tombol dibawah untuk menampilkan QRIS</p>
+                            </div>
+                          ) : (
+                            <div className="qris-container">
+                              <h4>Scan QRIS</h4>
+                              <img 
+                                src="https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=250&h=250&fit=crop" 
+                                alt="QRIS Code" 
+                                className="qris-code" 
+                              />
+                              <p className="qris-amount">Rp {Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1).toLocaleString('id-ID')}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="payment-actions">
+                        <button className="btn-back" onClick={() => setActiveMenu('menu')}>Kembali ke Menu</button>
+                        {paymentMethod === 'cash' && amountPaid && parseInt(amountPaid) >= Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1) && (
+                          <button className="btn-pay" onClick={handlePaymentComplete}>Selesai Pembayaran</button>
+                        )}
+                        {paymentMethod === 'cash' && (!amountPaid || parseInt(amountPaid) < Math.round(cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0) * 1.1)) && (
+                          <button className="btn-pay disabled">Lanjut Pembayaran</button>
+                        )}
+                        {paymentMethod === 'transfer' && (
+                          <button className="btn-pay" onClick={handlePaymentComplete}>Selesai Pembayaran</button>
+                        )}
+                        {paymentMethod === 'ewallet' && !showQRIS && (
+                          <button className="btn-pay" onClick={() => setShowQRIS(true)}>Lanjut Pembayaran</button>
+                        )}
+                        {paymentMethod === 'ewallet' && showQRIS && (
+                          <button className="btn-pay" onClick={handlePaymentComplete}>Selesai Pembayaran</button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="empty-order">
+                    <p>Keranjang kosong. Silakan tambahkan produk terlebih dahulu.</p>
+                    <button className="btn-back" onClick={() => setActiveMenu('menu')}>Kembali ke Menu</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* History Section */}
+          {activeMenu === 'history' && (
+            <div className="history-content">
+              <div className="history-main">
+                <div className="history-header">
+                  <h2>Riwayat Transaksi</h2>
+                </div>
+
+                {/* Search, Filter, Sort Bar */}
+                <div className="history-controls">
+                  <div className="history-search">
+                    <input
+                      type="text"
+                      className="history-search-input"
+                      placeholder="🔍 Cari receipt..."
+                      value={historySearchQuery}
+                      onChange={(e) => setHistorySearchQuery(e.target.value)}
+                    />
+                  </div>
+                  <div className="history-filters">
+                    <select
+                      className="filter-select"
+                      value={historyFilterMethod}
+                      onChange={(e) => setHistoryFilterMethod(e.target.value)}
+                    >
+                      <option value="all">🔗 Semua Metode</option>
+                      <option value="cash">💵 Tunai</option>
+                      <option value="transfer">🏦 Transfer</option>
+                      <option value="ewallet">📱 E-Wallet</option>
+                    </select>
+                    <select
+                      className="sort-select-history"
+                      value={historySortBy}
+                      onChange={(e) => setHistorySortBy(e.target.value)}
+                    >
+                      <option value="newest">📅 Terbaru</option>
+                      <option value="oldest">📅 Terlama</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Transactions List */}
+                {transactions.length === 0 ? (
+                  <div className="empty-history">
+                    <p>Belum ada transaksi</p>
+                  </div>
+                ) : getFilteredTransactions().length === 0 ? (
+                  <div className="empty-history">
+                    <p>Tidak ada transaksi yang sesuai dengan filter</p>
+                  </div>
+                ) : (
+                  <div className="transactions-cards-list">
+                    {getFilteredTransactions().map((transaction) => (
+                      <div
+                        key={transaction.id}
+                        className={`transaction-list-card ${selectedTransaction?.id === transaction.id ? 'active' : ''}`}
+                        onClick={() => setSelectedTransaction(transaction)}
+                      >
+                        <div className="card-icon">
+                          {transaction.paymentMethod === 'cash' ? '💵' : transaction.paymentMethod === 'transfer' ? '🏦' : '📱'}
+                        </div>
+                        <div className="card-info">
+                          <div className="card-datetime">
+                            {transaction.date}
+                          </div>
+                          <div className="card-outlet">
+                            Outlet: Madura Mart
+                          </div>
+                        </div>
+                        <div className="card-method">
+                          <span className={`method-badge-small ${transaction.paymentMethod}`}>
+                            {transaction.paymentMethod === 'cash' ? 'Tunai' : transaction.paymentMethod === 'transfer' ? 'Transfer' : 'E-Wallet'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Receipt Sidebar */}
+              <aside className="receipt-sidebar">
+                {selectedTransaction ? (
+                  <div className="receipt-detail">
+                    <div className="receipt-header">
+                      <div className="receipt-header-top">
+                        <h3>Receipt #{selectedTransaction.id}</h3>
+                        <button
+                          className="close-receipt"
+                          onClick={() => setSelectedTransaction(null)}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <div className="receipt-actions">
+                        <button
+                          className="receipt-btn download-btn"
+                          onClick={() => downloadReceiptPDF(selectedTransaction)}
+                          title="Download receipt sebagai PDF"
+                        >
+                          📥 Unduh
+                        </button>
+                        <button
+                          className="receipt-btn print-btn"
+                          onClick={() => printReceipt(selectedTransaction)}
+                          title="Cetak receipt"
+                        >
+                          🖨️ Cetak
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="receipt-content">
+                      <div className="receipt-section">
+                        <label>Tanggal & Waktu:</label>
+                        <p>{selectedTransaction.date}</p>
+                      </div>
+
+                      <div className="receipt-section">
+                        <label>Metode Pembayaran:</label>
+                        <p>
+                          {selectedTransaction.paymentMethod === 'cash' ? '💵 Tunai' : selectedTransaction.paymentMethod === 'transfer' ? '🏦 Transfer Bank' : '📱 E-Wallet'}
+                        </p>
+                      </div>
+
+                      <div className="receipt-section">
+                        <label>Produk:</label>
+                        <div className="receipt-items">
+                          {selectedTransaction.items.map(item => (
+                            <div key={item.id} className="receipt-item-detail">
+                              <span className="item-name">{item.name}</span>
+                              <span className="item-qty">x{item.quantity}</span>
+                              <span className="item-total">Rp {(item.price * item.quantity).toLocaleString('id-ID')}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="receipt-summary">
+                        <div className="summary-item">
+                          <span>Subtotal:</span>
+                          <span>Rp {Math.round(selectedTransaction.total / 1.1).toLocaleString('id-ID')}</span>
+                        </div>
+                        <div className="summary-item">
+                          <span>Pajak (10%):</span>
+                          <span>Rp {Math.round(selectedTransaction.total * 0.1 / 1.1).toLocaleString('id-ID')}</span>
+                        </div>
+                        <div className="summary-item total">
+                          <span>Total:</span>
+                          <span>Rp {selectedTransaction.total.toLocaleString('id-ID')}</span>
+                        </div>
+                        {selectedTransaction.change > 0 && (
+                          <div className="summary-item change">
+                            <span>Kembalian:</span>
+                            <span>Rp {selectedTransaction.change.toLocaleString('id-ID')}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="receipt-empty">
+                    <p>Pilih transaksi untuk melihat detail receipt</p>
+                  </div>
+                )}
+              </aside>
+            </div>
+          )}
+
+          {/* Report Section */}
+          {activeMenu === 'report' && (
+            <div className="report-section">
+              <div className="report-container">
+                <div className="report-header">
+                  <div className="report-header-left">
+                    <h2>Laporan Penjualan</h2>
+                    <p className="report-subtitle">Ringkasan performa penjualan Anda</p>
+                  </div>
+                  <div className="report-filters">
+                    <select 
+                      value={reportTimePeriod}
+                      onChange={(e) => setReportTimePeriod(e.target.value)}
+                      className="period-select"
+                    >
+                      <option value="today">Hari Ini</option>
+                      <option value="week">7 Hari Terakhir</option>
+                      <option value="month">30 Hari Terakhir</option>
+                      <option value="all">Semua Waktu</option>
+                    </select>
+                    {getFilteredTransactionsByPeriod().length > 0 && (
+                      <button 
+                        className="btn-download-pdf"
+                        onClick={exportReportToPDF}
+                        title="Unduh laporan dalam format PDF"
+                      >
+                        📥 Unduh PDF
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {getFilteredTransactionsByPeriod().length === 0 ? (
+                  <div className="empty-report">
+                    <h3>Belum ada data transaksi</h3>
+                    <p>Mulai melakukan transaksi untuk melihat laporan penjualan</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Sales Summary Cards */}
+                    <div className="report-summary-grid">
+                      <div className="summary-card">
+                        <div className="card-icon">💰</div>
+                        <div className="card-content">
+                          <p className="card-label">Total Penjualan</p>
+                          <p className="card-value">Rp {(() => {
+                            const total = getFilteredTransactionsByPeriod().reduce((sum, t) => sum + t.total, 0);
+                            return total.toLocaleString('id-ID');
+                          })()}</p>
+                        </div>
+                      </div>
+
+                      <div className="summary-card">
+                        <div className="card-icon">📦</div>
+                        <div className="card-content">
+                          <p className="card-label">Total Transaksi</p>
+                          <p className="card-value">{getFilteredTransactionsByPeriod().length}</p>
+                        </div>
+                      </div>
+
+                      <div className="summary-card">
+                        <div className="card-icon">📊</div>
+                        <div className="card-content">
+                          <p className="card-label">Total Produk Terjual</p>
+                          <p className="card-value">{(() => {
+                            const total = getFilteredTransactionsByPeriod().reduce((sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
+                            return total + ' items';
+                          })()}</p>
+                        </div>
+                      </div>
+
+                      <div className="summary-card">
+                        <div className="card-icon">📈</div>
+                        <div className="card-content">
+                          <p className="card-label">Rata-rata Transaksi</p>
+                          <p className="card-value">Rp {(() => {
+                            const filtered = getFilteredTransactionsByPeriod();
+                            const total = filtered.reduce((sum, t) => sum + t.total, 0);
+                            const avg = filtered.length > 0 ? Math.round(total / filtered.length) : 0;
+                            return avg.toLocaleString('id-ID');
+                          })()}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Additional Analytics */}
+                    <div className="report-analytics-grid">
+                      {/* Highest Transaction */}
+                      <div className="analytics-card">
+                        <h4>🎯 Transaksi Tertinggi</h4>
+                        <p className="analytics-value">Rp {(() => {
+                          const max = Math.max(...getFilteredTransactionsByPeriod().map(t => t.total), 0);
+                          return max.toLocaleString('id-ID');
+                        })()}</p>
+                        <p className="analytics-desc">Nilai transaksi terbesar dalam periode ini</p>
+                      </div>
+
+                      {/* Lowest Transaction */}
+                      <div className="analytics-card">
+                        <h4>📉 Transaksi Terendah</h4>
+                        <p className="analytics-value">Rp {(() => {
+                          const filtered = getFilteredTransactionsByPeriod();
+                          const min = filtered.length > 0 ? Math.min(...filtered.map(t => t.total)) : 0;
+                          return min.toLocaleString('id-ID');
+                        })()}</p>
+                        <p className="analytics-desc">Nilai transaksi terkecil dalam periode ini</p>
+                      </div>
+
+                      {/* Most Used Payment */}
+                      <div className="analytics-card">
+                        <h4>💳 Metode Pembayaran Utama</h4>
+                        <p className="analytics-value">{(() => {
+                          const filtered = getFilteredTransactionsByPeriod();
+                          const breakdown = {cash: 0, transfer: 0, ewallet: 0};
+                          filtered.forEach(t => breakdown[t.paymentMethod]++);
+                          const max = Math.max(breakdown.cash, breakdown.transfer, breakdown.ewallet);
+                          return breakdown.cash === max ? '💵 Tunai' : breakdown.transfer === max ? '🏦 Transfer' : '📱 E-Wallet';
+                        })()}</p>
+                        <p className="analytics-desc">Metode pembayaran paling sering digunakan</p>
+                      </div>
+
+                      {/* Average Items per Transaction */}
+                      <div className="analytics-card">
+                        <h4>📦 Rata-rata Item/Transaksi</h4>
+                        <p className="analytics-value">{(() => {
+                          const filtered = getFilteredTransactionsByPeriod();
+                          const total = filtered.reduce((sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + item.quantity, 0), 0);
+                          const avg = filtered.length > 0 ? (total / filtered.length).toFixed(1) : 0;
+                          return avg;
+                        })()}</p>
+                        <p className="analytics-desc">Rata-rata jumlah produk per transaksi</p>
+                      </div>
+                    </div>
+
+                    {/* Payment Method Breakdown */}
+                    <div className="report-grid">
+                      <div className="report-card payment-breakdown">
+                        <h3>Metode Pembayaran</h3>
+                        <div className="payment-stats">
+                          {(() => {
+                            const filtered = getFilteredTransactionsByPeriod();
+                            const breakdown = {cash: {count: 0, total: 0}, transfer: {count: 0, total: 0}, ewallet: {count: 0, total: 0}};
+                            filtered.forEach(t => {
+                              const method = t.paymentMethod;
+                              if (breakdown[method]) {
+                                breakdown[method].count += 1;
+                                breakdown[method].total += t.total;
+                              }
+                            });
+                            return (
+                              <>
+                                <div className="payment-row">
+                                  <div className="payment-info">
+                                    <span className="payment-icon">💵</span>
+                                    <div>
+                                      <p className="payment-name">Tunai</p>
+                                      <p className="payment-count">{breakdown.cash.count} transaksi</p>
+                                    </div>
+                                  </div>
+                                  <p className="payment-amount">Rp {breakdown.cash.total.toLocaleString('id-ID')}</p>
+                                </div>
+
+                                <div className="payment-row">
+                                  <div className="payment-info">
+                                    <span className="payment-icon">🏦</span>
+                                    <div>
+                                      <p className="payment-name">Transfer</p>
+                                      <p className="payment-count">{breakdown.transfer.count} transaksi</p>
+                                    </div>
+                                  </div>
+                                  <p className="payment-amount">Rp {breakdown.transfer.total.toLocaleString('id-ID')}</p>
+                                </div>
+
+                                <div className="payment-row">
+                                  <div className="payment-info">
+                                    <span className="payment-icon">📱</span>
+                                    <div>
+                                      <p className="payment-name">E-Wallet</p>
+                                      <p className="payment-count">{breakdown.ewallet.count} transaksi</p>
+                                    </div>
+                                  </div>
+                                  <p className="payment-amount">Rp {breakdown.ewallet.total.toLocaleString('id-ID')}</p>
+                                </div>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+
+                      {/* Top Products */}
+                      <div className="report-card top-products">
+                        <h3>Produk Terlaris</h3>
+                        <div className="products-table">
+                          <div className="table-header">
+                            <div className="col-no">No</div>
+                            <div className="col-name">Produk</div>
+                            <div className="col-qty">Terjual</div>
+                            <div className="col-revenue">Revenue</div>
+                          </div>
+                          {(() => {
+                            const filtered = getFilteredTransactionsByPeriod();
+                            const productSales = {};
+                            filtered.forEach(transaction => {
+                              transaction.items.forEach(item => {
+                                if (!productSales[item.id]) {
+                                  productSales[item.id] = {
+                                    id: item.id,
+                                    name: item.name,
+                                    quantity: 0,
+                                    revenue: 0
+                                  };
+                                }
+                                productSales[item.id].quantity += item.quantity;
+                                productSales[item.id].revenue += item.price * item.quantity;
+                              });
+                            });
+                            const topProducts = Object.values(productSales)
+                              .sort((a, b) => b.quantity - a.quantity)
+                              .slice(0, 5);
+                            return topProducts.length === 0 ? (
+                              <p className="no-data">Belum ada data produk</p>
+                            ) : (
+                              topProducts.map((product, index) => (
+                                <div key={product.id} className="table-row">
+                                  <div className="col-no">{index + 1}</div>
+                                  <div className="col-name">{product.name}</div>
+                                  <div className="col-qty">{product.quantity}</div>
+                                  <div className="col-revenue">Rp {product.revenue.toLocaleString('id-ID')}</div>
+                                </div>
+                              ))
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Category Performance */}
+                    <div className="report-card category-performance">
+                      <h3>Performa Kategori</h3>
+                      <div className="category-stats">
+                        {(() => {
+                          const filtered = getFilteredTransactionsByPeriod();
+                          const categoryStats = {};
+                          products.forEach(product => {
+                            if (!categoryStats[product.category]) {
+                              categoryStats[product.category] = {
+                                category: product.category,
+                                quantity: 0,
+                                revenue: 0
+                              };
+                            }
+                          });
+                          filtered.forEach(transaction => {
+                            transaction.items.forEach(item => {
+                              const product = products.find(p => p.id === item.id);
+                              if (product && categoryStats[product.category]) {
+                                categoryStats[product.category].quantity += item.quantity;
+                                categoryStats[product.category].revenue += item.price * item.quantity;
+                              }
+                            });
+                          });
+                          const categoryPerf = Object.values(categoryStats)
+                            .sort((a, b) => b.revenue - a.revenue)
+                            .filter(cat => cat.revenue > 0);
+                          return categoryPerf.length === 0 ? (
+                            <p className="no-data">Belum ada data kategori</p>
+                          ) : (
+                            categoryPerf.map((cat) => {
+                              const maxRevenue = Math.max(...categoryPerf.map(c => c.revenue));
+                              const percentage = (cat.revenue / maxRevenue) * 100;
+                              return (
+                                <div key={cat.category} className="category-row">
+                                  <div className="category-info">
+                                    <p className="category-name">{cat.category}</p>
+                                    <p className="category-detail">{cat.quantity} items • Rp {cat.revenue.toLocaleString('id-ID')}</p>
+                                  </div>
+                                  <div className="progress-bar">
+                                    <div className="progress-fill" style={{ width: `${percentage}%` }}></div>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          );
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* Recent Transactions */}
+                    {getFilteredTransactionsByPeriod().length > 0 && (
+                      <div className="report-card recent-transactions-report">
+                        <h3>Transaksi Terbaru</h3>
+                        <div className="recent-list-scroll">
+                          <div className="recent-list">
+                            {getFilteredTransactionsByPeriod().slice(0, 5).map((transaction, index) => (
+                              <div 
+                                key={transaction.id} 
+                                className="recent-item"
+                                onClick={() => {
+                                  setSelectedTransaction(transaction);
+                                  setActiveMenu('history');
+                                }}
+                              >
+                                <div className="recent-number">{index + 1}</div>
+                                <div className="recent-icon">
+                                  {transaction.paymentMethod === 'cash' ? '💵' : transaction.paymentMethod === 'transfer' ? '🏦' : '📱'}
+                                </div>
+                                <div className="recent-info">
+                                  <div className="recent-method">
+                                    {transaction.paymentMethod === 'cash' ? 'Tunai' : transaction.paymentMethod === 'transfer' ? 'Transfer' : 'E-Wallet'}
+                                  </div>
+                                  <div className="recent-time">{transaction.date}</div>
+                                </div>
+                                <div className="recent-amount">
+                                  Rp {transaction.total.toLocaleString('id-ID')}
+                                </div>
+                                <div className="recent-arrow">→</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default HomePage;

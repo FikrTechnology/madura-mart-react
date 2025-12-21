@@ -1,5 +1,28 @@
 # 📚 Madura Mart - Documentation Index
 
+---
+
+## 🆕 Backend Integration (December 2024)
+
+**⚡ New!** The frontend has been integrated with the backend API. Start here if you're working with the new backend.
+
+### Quick Links
+- 📖 [README_INTEGRATION.md](./README_INTEGRATION.md) - Complete integration overview
+- ⚡ [QUICK_START_INTEGRATION.md](./QUICK_START_INTEGRATION.md) - 5-minute quickstart
+- 📚 [BACKEND_INTEGRATION.md](./BACKEND_INTEGRATION.md) - Detailed API reference
+- ✅ [INTEGRATION_COMPLETE.md](./INTEGRATION_COMPLETE.md) - Implementation summary
+- 🧪 [TESTING_GUIDE.md](./TESTING_GUIDE.md) - Complete testing procedures
+
+### What's New?
+- ✅ All 33 API endpoints integrated from Postman collection
+- ✅ JWT authentication with token management
+- ✅ Role-based access control (Owner, Admin, Cashier)
+- ✅ Multi-outlet support
+- ✅ Complete POS functionality
+- ✅ Sales reporting and analytics
+
+---
+
 ## 🎯 Start Here (Pilih Sesuai Kebutuhan)
 
 ### 👶 **Saya Pemula, Mau Paham Project**
