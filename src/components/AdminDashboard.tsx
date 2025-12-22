@@ -2,10 +2,14 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/AdminDashboard.css';
 import AlertModal from './AlertModal';
+import { userAPI } from '../services/api';
 
 const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOutlets }) => {
   const [activeTab, setActiveTab] = useState('products');
-  const [currentOutletId, setCurrentOutletId] = useState(currentOutlet?.id);
+  // Initialize with currentOutlet?.id, fallback to first userOutlet
+  const [currentOutletId, setCurrentOutletId] = useState(() => {
+    return currentOutlet?.id || userOutlets?.[0]?.id;
+  });
   
   // Modal state
   const [modal, setModal] = useState({ isOpen: false, type: 'info', title: '', message: '', actions: [] });
@@ -35,6 +39,38 @@ const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOu
     return stored ? JSON.parse(stored) : userOutlets;
   });
 
+  // Load employees from backend on component mount
+  useEffect(() => {
+    const loadEmployees = async () => {
+      try {
+        const result = await userAPI.getAll();
+        if (result.success && result.data) {
+          setEmployees(result.data);
+          localStorage.setItem('madura_employees', JSON.stringify(result.data));
+        }
+      } catch (error) {
+        console.error('Failed to load employees from backend:', error);
+        // Fall back to localStorage if backend fails
+        const stored = localStorage.getItem('madura_employees');
+        if (stored) {
+          setEmployees(JSON.parse(stored));
+        }
+      }
+    };
+    
+    loadEmployees();
+  }, []);
+
+  // Sync currentOutletId with currentOutlet prop
+  useEffect(() => {
+    if (currentOutlet?.id) {
+      setCurrentOutletId(currentOutlet.id);
+    } else if (userOutlets?.length > 0 && !currentOutletId) {
+      // Fallback to first outlet if no currentOutlet
+      setCurrentOutletId(userOutlets[0].id);
+    }
+  }, [currentOutlet?.id, userOutlets]);
+
   // Get current outlet
   const currentOutletData = outlets.find(o => o.id === currentOutletId) || currentOutlet;
 
@@ -45,10 +81,29 @@ const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOu
     p.category.toLowerCase().includes(productSearch.toLowerCase())
   );
 
-  // Get outlet-specific employees
-  const outletEmployees = employees.filter(emp =>
-    emp.outlet_ids?.includes(currentOutletId) || emp.outlet_id === currentOutletId
-  );
+  // Get outlet-specific employees (exclude owner role)
+  // First try strict filter - show only assigned to current outlet
+  // Then fallback to show all if none found (for legacy data compatibility)
+  const strictFilteredEmployees = employees.filter(emp => {
+    if (!currentOutletId || emp.role === 'owner') {
+      return false;
+    }
+    
+    if ((emp.outlet_ids && emp.outlet_ids.length > 0) || emp.outlet_id) {
+      const empOutletIds = (emp.outlet_ids || []).map(id => String(id).trim().toLowerCase());
+      const empSingleOutletId = emp.outlet_id ? String(emp.outlet_id).trim().toLowerCase() : null;
+      const currentId = String(currentOutletId).trim().toLowerCase();
+      return empOutletIds.includes(currentId) || empSingleOutletId === currentId;
+    }
+    
+    return false;
+  });
+  
+  // Fallback: if no employees found with proper assignment, show all non-owner employees
+  // This handles case where employees exist but haven't been properly assigned
+  const outletEmployees = strictFilteredEmployees.length > 0 
+    ? strictFilteredEmployees 
+    : employees.filter(emp => emp.role !== 'owner');
 
   // Product CRUD handlers
   const handleSaveProduct = () => {
@@ -209,27 +264,47 @@ const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOu
       <div className="dashboard-header">
         <div className="header-content">
           <h1>🏪 Admin Dashboard</h1>
-          <p>Kelola produk dan karyawan outlet</p>
+          <p>Kelola produk dan karyawan</p>
         </div>
         <div className="header-actions">
           <button className="logout-btn" onClick={() => setLogoutModal(true)}>Keluar</button>
         </div>
       </div>
 
-      {/* Outlet Selector for Multi-outlet Admin */}
+      {/* Outlet Selector - Only show if multiple outlets */}
       {userOutlets && userOutlets.length > 1 && (
-        <div className="outlet-selector">
-          <label>Pilih Outlet:</label>
-          <div className="outlet-buttons">
-            {userOutlets.map(outlet => (
-              <button
-                key={outlet.id}
-                className={`outlet-btn ${currentOutletId === outlet.id ? 'active' : ''}`}
-                onClick={() => handleChangeOutlet(outlet.id)}
-              >
-                {outlet.name}
-              </button>
-            ))}
+        <div className="outlet-selector" style={{ marginBottom: '20px' }}>
+          <div style={{ 
+            backgroundColor: '#f8f9fa', 
+            padding: '15px 20px', 
+            borderRadius: '8px',
+            border: '2px solid #FF6B6B',
+            borderLeft: '5px solid #FF6B6B'
+          }}>
+            <label style={{ fontWeight: 'bold', marginBottom: '10px', display: 'block', color: '#333' }}>
+              📍 Pilih Outlet Untuk Dikelola:
+            </label>
+            <div className="outlet-buttons" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+              {userOutlets.map(outlet => (
+                <button
+                  key={outlet.id}
+                  className={`outlet-btn ${currentOutletId === outlet.id ? 'active' : ''}`}
+                  onClick={() => handleChangeOutlet(outlet.id)}
+                  style={{
+                    padding: '10px 16px',
+                    borderRadius: '6px',
+                    border: currentOutletId === outlet.id ? '2px solid #FF6B6B' : '2px solid #ddd',
+                    backgroundColor: currentOutletId === outlet.id ? '#FFE0E0' : '#fff',
+                    color: currentOutletId === outlet.id ? '#FF6B6B' : '#666',
+                    fontWeight: currentOutletId === outlet.id ? 'bold' : 'normal',
+                    cursor: 'pointer',
+                    transition: 'all 0.3s ease'
+                  }}
+                >
+                  {outlet.name} {currentOutletId === outlet.id && '✓'}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -254,6 +329,18 @@ const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOu
       <div className="dashboard-content">
         {activeTab === 'products' && (
           <div className="products-tab">
+            {/* Tab Title with Outlet Info */}
+            <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: '2px solid #f0f0f0' }}>
+              <h2 style={{ margin: '0 0 5px 0', color: '#333' }}>
+                📦 Daftar Produk {currentOutletData?.name && (
+                  <span style={{ color: '#FF6B6B' }}>- {currentOutletData.name}</span>
+                )}
+              </h2>
+              <p style={{ margin: '5px 0 0 0', color: '#999', fontSize: '14px' }}>
+                Kelola produk untuk outlet {userOutlets && userOutlets.length > 1 ? 'ini' : currentOutletData?.name}
+              </p>
+            </div>
+
             {/* Header dengan Search & Add Button */}
             <div className="products-header">
               <div className="search-box">
@@ -471,7 +558,17 @@ const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOu
 
         {activeTab === 'employees' && (
           <div className="employees-tab">
-            <h2>Daftar Karyawan {currentOutletData?.name}</h2>
+            {/* Tab Title with Outlet Info */}
+            <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: '2px solid #f0f0f0' }}>
+              <h2 style={{ margin: '0 0 5px 0', color: '#333' }}>
+                👥 Daftar Karyawan {currentOutletData?.name && (
+                  <span style={{ color: '#FF6B6B' }}>- {currentOutletData.name}</span>
+                )}
+              </h2>
+              <p style={{ margin: '5px 0 0 0', color: '#999', fontSize: '14px' }}>
+                Lihat karyawan yang bertugas di outlet {userOutlets && userOutlets.length > 1 ? 'ini' : currentOutletData?.name}
+              </p>
+            </div>
             
             <div className="employees-list">
               {outletEmployees.length > 0 ? (
@@ -496,6 +593,8 @@ const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOu
               ) : (
                 <div className="no-data">
                   <p>Belum ada karyawan di outlet ini</p>
+                  {employees.length === 0 && <p style={{ fontSize: '12px', color: '#999', marginTop: '10px' }}>ℹ️ Tidak ada data karyawan. Buat karyawan melalui dashboard owner.</p>}
+                  {employees.length > 0 && currentOutletId && <p style={{ fontSize: '12px', color: '#999', marginTop: '10px' }}>ℹ️ Total karyawan sistem: {employees.length}. Pilih outlet lain atau hubungi owner untuk assign karyawan.</p>}
                 </div>
               )}
             </div>

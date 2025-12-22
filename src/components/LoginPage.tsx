@@ -94,7 +94,7 @@ const LoginPage: FC<LoginPageProps> = ({ onLoginSuccess }) => {
     if (shouldFetchOutlets && authUser) {
       setLoadingStep('Memuat outlet...');
       console.log('Fetching outlets for user:', authUser.email);
-      fetchOutlets();
+      fetchOutlets(authUser.id);
       setShouldFetchOutlets(false);
     }
   }, [shouldFetchOutlets, authUser, fetchOutlets]);

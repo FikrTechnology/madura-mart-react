@@ -275,12 +275,25 @@ const OwnerDashboard = ({ onLogout, currentOutlet, products, transactions, userO
 
   // Add new employee
   const handleAddEmployee = async () => {
-    if (!newEmployee.name || !newEmployee.email || !newEmployee.password || newEmployee.outlet_ids.length === 0) {
+    // Validation: require password only for new employees
+    if (!newEmployee.name || !newEmployee.email || newEmployee.outlet_ids.length === 0) {
       setModal({
         isOpen: true,
         type: 'error',
         title: 'Validasi Gagal',
-        message: 'Semua field harus diisi!',
+        message: 'Nama, email, dan outlet harus diisi!',
+        actions: [{ label: 'OK', type: 'primary' }]
+      });
+      return;
+    }
+
+    // For new employees, password is required
+    if (!editingEmployee && !newEmployee.password) {
+      setModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Validasi Gagal',
+        message: 'Password harus diisi untuk karyawan baru!',
         actions: [{ label: 'OK', type: 'primary' }]
       });
       return;
@@ -301,13 +314,19 @@ const OwnerDashboard = ({ onLogout, currentOutlet, products, transactions, userO
           return;
         }
         
-        const updatePayload = {
+        // Only include password in payload if it's not empty (user wants to change it)
+        const updatePayload: any = {
           name: newEmployee.name,
           email: newEmployee.email,
-          password: newEmployee.password,
           role: newEmployee.role,
-          status: 'active'
+          status: 'active',
+          outlet_ids: newEmployee.outlet_ids
         };
+        
+        // Add password only if provided
+        if (newEmployee.password && newEmployee.password.trim().length > 0) {
+          updatePayload.password = newEmployee.password;
+        }
         
         await userAPI.update(editingEmployee.id, updatePayload);
         setEmployees(employees.map(e => 
@@ -340,7 +359,8 @@ const OwnerDashboard = ({ onLogout, currentOutlet, products, transactions, userO
           email: newEmployee.email,
           password: newEmployee.password,
           role: newEmployee.role,
-          status: 'active'
+          status: 'active',
+          outlet_ids: newEmployee.outlet_ids // ✅ Include outlet_ids array
         };
         
         const result = await userAPI.create(createPayload);
@@ -387,7 +407,7 @@ const OwnerDashboard = ({ onLogout, currentOutlet, products, transactions, userO
     setNewEmployee({
       name: emp.name,
       email: emp.email,
-      password: emp.password,
+      password: '', // ✅ Don't pre-fill hashed password - user must re-enter if they want to change it
       role: emp.role,
       outlet_ids: emp.outlet_ids || [emp.outlet_id]
     });
@@ -867,7 +887,7 @@ const OwnerDashboard = ({ onLogout, currentOutlet, products, transactions, userO
           <span style={{ fontSize: '12px', color: '#666', marginLeft: 'auto' }}>
             {viewMode === 'all' 
               ? 'Menampilkan data dari semua outlet' 
-              : `Menampilkan data dari ${userOutlets.find(o => o.id === viewMode)?.name || 'outlet'}`
+              : `Menampilkan data dari ${outlets.find(o => o.id === viewMode)?.name || 'outlet'}`
             }
           </span>
         </div>
@@ -896,7 +916,7 @@ const OwnerDashboard = ({ onLogout, currentOutlet, products, transactions, userO
                   <h3>Penjualan Hari Ini</h3>
                   <p className="metric-value">Rp {calculateTodaySales().toLocaleString('id-ID')}</p>
                   <span className="metric-subtitle">
-                    {viewMode === 'all' ? 'Total semua outlet' : `Total ${userOutlets.find(o => o.id === viewMode)?.name || 'outlet'}`}
+                    {viewMode === 'all' ? 'Total semua outlet' : `Total ${outlets.find(o => o.id === viewMode)?.name || 'outlet'}`}
                   </span>
                 </div>
               </div>
@@ -912,7 +932,7 @@ const OwnerDashboard = ({ onLogout, currentOutlet, products, transactions, userO
                     }
                   </p>
                   <span className="metric-subtitle">
-                    {viewMode === 'all' ? 'Semua outlet, semua waktu' : `${userOutlets.find(o => o.id === viewMode)?.name || 'Outlet'}, semua waktu`}
+                    {viewMode === 'all' ? 'Semua outlet, semua waktu' : `${outlets.find(o => o.id === viewMode)?.name || 'Outlet'}, semua waktu`}
                   </span>
                 </div>
               </div>
@@ -951,7 +971,7 @@ const OwnerDashboard = ({ onLogout, currentOutlet, products, transactions, userO
 
         {activeTab === 'inventory' && (
           <div className="inventory-section">
-            <h2>📦 Inventaris {viewMode === 'all' ? 'Semua Outlet' : currentOutlet?.name}</h2>
+            <h2>📦 Inventaris {viewMode === 'all' ? 'Semua Outlet' : outlets.find(o => o.id === viewMode)?.name || 'Outlet'}</h2>
             
             <div className="inventory-cards">
               <div className="inventory-card">
@@ -1217,7 +1237,7 @@ const OwnerDashboard = ({ onLogout, currentOutlet, products, transactions, userO
         {activeTab === 'products' && (
           <div className="tab-content">
             <div className="products-overview">
-              <h2>📦 Manajemen Produk {viewMode === 'all' ? '- Semua Outlet' : `- ${currentOutlet?.name}`}</h2>
+              <h2>📦 Manajemen Produk {viewMode === 'all' ? '- Semua Outlet' : `- ${outlets.find(o => o.id === viewMode)?.name || 'Outlet'}`}</h2>
               {viewMode === 'all' ? (
                 outlets && outlets.filter(outlet => (outlet.status || 'active') === 'active').map((outlet) => {
                   const outletProducts = products.filter(p => p.outlet_id === outlet.id);
@@ -1258,10 +1278,11 @@ const OwnerDashboard = ({ onLogout, currentOutlet, products, transactions, userO
               ) : (
                 (() => {
                   const outletProducts = products.filter(p => p.outlet_id === viewMode);
+                  const selectedOutlet = outlets.find(o => o.id === viewMode);
                   return (
                     <div className="outlet-products-section">
                       <div className="outlet-section-header">
-                        <h3>🏪 {currentOutlet?.name}</h3>
+                        <h3>🏪 {selectedOutlet?.name || 'Outlet'}</h3>
                         <span className="product-count">{outletProducts.length} produk</span>
                       </div>
                       {outletProducts.length > 0 ? (
@@ -1563,9 +1584,18 @@ const OwnerDashboard = ({ onLogout, currentOutlet, products, transactions, userO
                       {employees.length > 0 ? (
                         employees
                           .filter(emp => {
-                            if (!selectedManagementOutlet) return true;
-                            return emp.outlet_ids?.includes(selectedManagementOutlet.id) || 
-                                   emp.outlet_id === selectedManagementOutlet.id;
+                            // Filter by outlet if selectedManagementOutlet is set
+                            if (selectedManagementOutlet) {
+                              // Normalize IDs for comparison
+                              const empOutletIds = (emp.outlet_ids || []).map(id => String(id).trim().toLowerCase());
+                              const empSingleOutletId = emp.outlet_id ? String(emp.outlet_id).trim().toLowerCase() : null;
+                              const selectedId = String(selectedManagementOutlet.id).trim().toLowerCase();
+                              
+                              const isInSelectedOutlet = empOutletIds.includes(selectedId) || empSingleOutletId === selectedId;
+                              if (!isInSelectedOutlet) return false;
+                            }
+                            // Always exclude owner role - only show admin and cashier
+                            return emp.role !== 'owner';
                           })
                           .map((emp) => {
                             const empOutlets = outlets.filter(o => 

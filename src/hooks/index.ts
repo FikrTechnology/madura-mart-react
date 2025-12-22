@@ -100,13 +100,35 @@ export const useOutlet = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchOutlets = useCallback(async () => {
+  const fetchOutlets = useCallback(async (userId?: string) => {
     setLoading(true);
     setError(null);
     try {
+      // Fetch all outlets
       const response = await outletAPI.getAll();
       if (response.success && response.data) {
-        setOutlets(response.data);
+        let filteredOutlets = response.data;
+
+        // Jika ada userId, filter outlets berdasarkan user assignment
+        if (userId) {
+          try {
+            const userResponse = await userAPI.getById(userId);
+            if (userResponse.success && userResponse.data) {
+              const user = userResponse.data as any;
+              const userOutletIds = user.outlet_ids || [];
+              
+              // Filter outlets yang di-assign ke user ini
+              if (userOutletIds.length > 0) {
+                filteredOutlets = filteredOutlets.filter(o => userOutletIds.includes(o.id));
+              }
+            }
+          } catch (err) {
+            console.warn('Could not fetch user outlet assignments, showing all outlets:', err);
+            // Jika error saat fetch user, tetap show semua outlets
+          }
+        }
+
+        setOutlets(filteredOutlets);
       }
     } catch (err) {
       const message = err instanceof AxiosError ? err.message : String(err);
