@@ -279,7 +279,18 @@ export const productAPI = {
     const response = await apiClient.get<ApiResponse<Product[]>>(
       `/products?${queryParams.toString()}`
     );
-    return response.data;
+    
+    // Ensure data is always an array
+    let data = response.data.data || [];
+    if (!Array.isArray(data)) {
+      // Convert object with numeric keys to array
+      data = Object.values(data);
+    }
+    
+    return {
+      ...response.data,
+      data: data
+    };
   },
 
   getById: async (id: string) => {

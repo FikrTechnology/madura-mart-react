@@ -30,14 +30,43 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount and validate token
   useEffect(() => {
-    const storedUser = localStorage.getItem('madura_user');
-    const storedToken = localStorage.getItem('madura_token');
-    if (storedUser && storedToken) {
-      setUser(JSON.parse(storedUser));
-      setToken(storedToken);
-    }
+    const loadAndValidateAuth = async () => {
+      setLoading(true);
+      const storedUser = localStorage.getItem('madura_user');
+      const storedToken = localStorage.getItem('madura_token');
+      
+      if (storedUser && storedToken) {
+        try {
+          // Validate token by calling a protected endpoint
+          // If token is invalid, backend will return 401
+          const response = await authAPI.getCurrentUser();
+          if (response.success && response.data) {
+            // Token is valid, restore session
+            setUser(JSON.parse(storedUser));
+            setToken(storedToken);
+          } else {
+            // Token validation failed, clear stored data
+            localStorage.removeItem('madura_user');
+            localStorage.removeItem('madura_token');
+            setUser(null);
+            setToken(null);
+          }
+        } catch (err) {
+          // Error validating token, likely expired or invalid
+          // Clear stored authentication data
+          console.warn('Token validation failed, clearing session:', err);
+          localStorage.removeItem('madura_user');
+          localStorage.removeItem('madura_token');
+          setUser(null);
+          setToken(null);
+        }
+      }
+      setLoading(false);
+    };
+
+    loadAndValidateAuth();
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

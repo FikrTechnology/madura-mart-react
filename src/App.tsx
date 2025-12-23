@@ -182,6 +182,41 @@ const App: FC = () => {
   }, [products]);
 
   /**
+   * Refresh products dari backend - called setelah CRUD operations
+   */
+  const refreshProductsFromBackend = async () => {
+    try {
+      console.log('[App] Refreshing products from backend...');
+      // Dynamic import untuk avoid circular dependency
+      const { productAPI } = await import('./services/api');
+      
+      const result = await productAPI.getAll({ limit: 100 });
+      console.log('[App] Refresh response:', result);
+      
+      if (result.success && result.data) {
+        console.log('[App] Got products from backend:', result.data.length, 'items');
+        const productsArray = Array.isArray(result.data) ? result.data : Object.values(result.data);
+        
+        // Normalize products to ensure outlet_id field
+        const normalized = productsArray.map((p: any) => ({
+          ...p,
+          outlet_id: p.outlet_id || p.outletId,
+        }));
+        
+        console.log('[App] Setting products state with', normalized.length, 'items');
+        setProducts(normalized as Product[]);
+        localStorage.setItem('madura_products', JSON.stringify(normalized));
+        console.log('[App] Products state updated successfully');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('[App] Error refreshing products:', error);
+      return false;
+    }
+  };
+
+  /**
    * Handle successful login from LoginPage
    */
   const handleLoginSuccess = (
@@ -232,6 +267,7 @@ const App: FC = () => {
             products={products}
             setProducts={setProducts}
             userOutlets={userOutlets}
+            onRefreshProducts={refreshProductsFromBackend}
           />
         ) : userRole === 'cashier' ? (
           <HomePage
