@@ -41,7 +41,12 @@ const LoginPage: FC<LoginPageProps> = ({ onLoginSuccess }) => {
       password: 'admin123',
     },
     {
-      label: '💳 Cashier',
+      label: '� Admin (Multiple Outlets)',
+      email: 'asd@asd.c',
+      password: 'asd',
+    },
+    {
+      label: '�💳 Cashier',
       email: 'cashier@outlet1.com',
       password: 'cashier123',
     },

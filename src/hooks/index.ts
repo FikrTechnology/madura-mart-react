@@ -133,34 +133,50 @@ export const useOutlet = () => {
     setLoading(true);
     setError(null);
     try {
+      console.log('[useOutlet] Fetching outlets for userId:', userId);
+      
       // Fetch all outlets
       const response = await outletAPI.getAll();
+      console.log('[useOutlet] All outlets response:', response);
+      
       if (response.success && response.data) {
         let filteredOutlets = response.data;
 
         // Jika ada userId, filter outlets berdasarkan user assignment
         if (userId) {
           try {
+            console.log('[useOutlet] Fetching user data for outlet assignment...');
             const userResponse = await userAPI.getById(userId);
+            console.log('[useOutlet] User response:', userResponse);
+            
             if (userResponse.success && userResponse.data) {
               const user = userResponse.data as any;
-              const userOutletIds = user.outlet_ids || [];
+              const userOutletIds = user.outlet_ids || user.outletIds || [];
+              
+              console.log('[useOutlet] User outlet IDs:', userOutletIds);
+              console.log('[useOutlet] User object:', user);
               
               // Filter outlets yang di-assign ke user ini
               if (userOutletIds.length > 0) {
+                console.log('[useOutlet] Filtering outlets - before:', filteredOutlets.length);
                 filteredOutlets = filteredOutlets.filter(o => userOutletIds.includes(o.id));
+                console.log('[useOutlet] Filtering outlets - after:', filteredOutlets.length);
+              } else {
+                console.warn('[useOutlet] No outlet IDs found in user data, showing all outlets');
               }
             }
           } catch (err) {
-            console.warn('Could not fetch user outlet assignments, showing all outlets:', err);
+            console.warn('[useOutlet] Could not fetch user outlet assignments, showing all outlets:', err);
             // Jika error saat fetch user, tetap show semua outlets
           }
         }
 
+        console.log('[useOutlet] Setting outlets:', filteredOutlets.length, 'outlets');
         setOutlets(filteredOutlets);
       }
     } catch (err) {
       const message = err instanceof AxiosError ? err.message : String(err);
+      console.error('[useOutlet] Error fetching outlets:', message);
       setError(message);
     } finally {
       setLoading(false);

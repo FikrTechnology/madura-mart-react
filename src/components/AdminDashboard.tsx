@@ -30,45 +30,94 @@ const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOu
 
   const safeSetProducts = typeof setProducts === 'function' 
     ? (newProducts) => {
-        console.log('safeSetProducts called with', newProducts.length, 'products');
+        console.log('[safeSetProducts] Setting products, count:', newProducts.length);
         const normalized = normalizeProducts(newProducts);
-        console.log('Normalized products:', normalized);
-        setProducts(normalized);
+        console.log('[safeSetProducts] After normalization:', normalized.length);
+        console.log('[safeSetProducts] First product:', normalized[0] || 'none');
+        
+        // IMPORTANT: Create new array reference to force React re-render
+        const newArray = [...normalized];
+        console.log('[safeSetProducts] Calling setProducts with new array reference...');
+        setProducts(newArray);
+        console.log('[safeSetProducts] ✓ setProducts called');
       }
     : (newProducts) => {
-        console.warn('setProducts not available from parent, using localStorage fallback');
+        console.warn('[safeSetProducts] setProducts not a function, using localStorage fallback');
         const normalized = normalizeProducts(newProducts);
         localStorage.setItem('madura_products', JSON.stringify(normalized));
       };
   
   // Function to reload products from backend
-  // Use callback from parent if available, otherwise fetch directly
-  const reloadProducts = async () => {
+  // ROBUST VERSION: Always fetch fresh data directly
+  const reloadProducts = async (showLoadingMsg = true, retries = 3) => {
     try {
-      console.log('[AdminDashboard] reloadProducts called');
+      console.log('[reloadProducts] ======= START RELOAD =======');
+      console.log('[reloadProducts] Attempt', (3 - retries + 1), 'of 3');
       
-      // Prefer parent callback untuk consistency dengan parent state
-      if (onRefreshProducts && typeof onRefreshProducts === 'function') {
-        console.log('[AdminDashboard] Using parent callback to refresh products');
-        const success = await onRefreshProducts();
-        console.log('[AdminDashboard] Parent refresh result:', success);
-        return success;
-      } else {
-        // Fallback: fetch directly (legacy support)
-        console.log('[AdminDashboard] Using direct fetch fallback');
-        const result = await productAPI.getAll({ limit: 100 });
-        if (result.success && result.data) {
-          console.log('[AdminDashboard] Products reloaded from backend:', result.data.length, 'items');
-          safeSetProducts(result.data);
-          localStorage.setItem('madura_products', JSON.stringify(result.data));
-          return true;
-        } else {
-          console.warn('[AdminDashboard] Reload returned non-success response:', result);
-          return false;
+      if (showLoadingMsg) {
+        setIsLoading(true);
+        setLoadingMessage('Memperbarui data produk...');
+      }
+      
+      // ALWAYS fetch fresh from backend directly
+      console.log('[reloadProducts] Fetching ALL products from backend (no cache)...');
+      // Add timestamp to bypass any potential caching
+      const result = await productAPI.getAll({ limit: 1000, _t: Date.now() });
+      console.log('[reloadProducts] API Response:', {
+        success: result.success,
+        dataType: typeof result.data,
+        itemCount: Array.isArray(result.data) ? result.data.length : Object.keys(result.data || {}).length
+      });
+      
+      if (result.success && result.data) {
+        // Convert object to array if needed
+        let productsArray = Array.isArray(result.data) ? result.data : Object.values(result.data || {});
+        console.log('[reloadProducts] ✓ Got', productsArray.length, 'products from backend');
+        
+        // Normalize products
+        const normalized = productsArray.map((p: any) => ({
+          ...p,
+          outlet_id: p.outlet_id || p.outletId,
+        }));
+        
+        console.log('[reloadProducts] ✓ Normalized', normalized.length, 'products');
+        console.log('[reloadProducts] Sample product:', normalized[0] || 'none');
+        console.log('[reloadProducts] Updating local state...');
+        
+        // Update local state directly - this is the key
+        safeSetProducts(normalized);
+        
+        // Also update localStorage
+        localStorage.setItem('madura_products', JSON.stringify(normalized));
+        console.log('[reloadProducts] ✓ State & LocalStorage updated');
+        
+        if (showLoadingMsg) {
+          setIsLoading(false);
+          setLoadingMessage('');
         }
+        
+        console.log('[reloadProducts] ======= END RELOAD (SUCCESS) =======');
+        return true;
+      } else {
+        console.error('[reloadProducts] API returned success=false');
+        throw new Error(result.message || 'API returned success=false');
       }
     } catch (error) {
-      console.error('[AdminDashboard] Error reloading products:', error);
+      console.error('[reloadProducts] ❌ Error:', error.message || error);
+      
+      // Retry mechanism
+      if (retries > 0) {
+        console.log('[reloadProducts] ⟳ Retrying... (' + (3 - retries + 1) + '/3 attempts)');
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        return reloadProducts(showLoadingMsg, retries - 1);
+      }
+      
+      console.log('[reloadProducts] ❌ Failed after 3 attempts');
+      if (showLoadingMsg) {
+        setIsLoading(false);
+        setLoadingMessage('');
+      }
+      
       return false;
     }
   };
@@ -76,18 +125,25 @@ const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOu
   // Debug logging
   useEffect(() => {
     console.log('=== AdminDashboard RENDER ===');
-    console.log('Current products in state:', products);
-    console.log('Current outlet ID:', currentOutletId);
+    console.log('userOutlets prop:', userOutlets);
+    console.log('userOutlets length:', userOutlets?.length);
+    console.log('currentOutletId:', currentOutletId);
+    console.log('currentOutlet prop:', currentOutlet);
+    console.log('Current products in state:', products.length, 'products');
     console.log('Filtered products for outlet:', products.filter(p => {
       const oid = p.outlet_id || p.outletId;
       return oid === currentOutletId;
-    }));
+    }).length);
     console.log('===========================');
-  }, [products, currentOutletId]);
+  }, [products, currentOutletId, userOutlets]);
   
   // Modal state
   const [modal, setModal] = useState({ isOpen: false, type: 'info', title: '', message: '', actions: [] });
   const [logoutModal, setLogoutModal] = useState(false);
+  
+  // Loading state untuk CRUD operations
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
   
   // Product management states
   const [showProductForm, setShowProductForm] = useState(false);
@@ -229,7 +285,11 @@ const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOu
 
     if (editingProduct) {
       // Update existing product
-      console.log('[UPDATE] Starting update for product:', editingProduct.id);
+      console.log('[UPDATE] ========== START UPDATE ==========');
+      console.log('[UPDATE] Product ID:', editingProduct.id);
+      console.log('[UPDATE] Product name:', newProduct.name);
+      setIsLoading(true);
+      setLoadingMessage('Mengupdate produk...');
       
       try {
         const updateData = {
@@ -242,29 +302,57 @@ const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOu
           status: 'active'
         };
         
-        console.log('[UPDATE] Sending to backend:', updateData);
+        console.log('[UPDATE] Sending update request to backend');
         const result = await productAPI.update(editingProduct.id, updateData);
-        console.log('[UPDATE] Backend response:', result);
+        console.log('[UPDATE] ✓ Backend response received:', result.success);
         
         if (result.success) {
-          console.log('[UPDATE] Update successful, reloading products from backend...');
-          // TUNGGU sampai reload selesai baru close form
-          await reloadProducts();
-          console.log('[UPDATE] Products reloaded, showing success message');
+          console.log('[UPDATE] ✓ Update successful, waiting for database to commit...');
+          setLoadingMessage('Memperbarui daftar produk...');
           
-          resetProductForm();
-          setModal({
-            isOpen: true,
-            type: 'success',
-            title: 'Berhasil!',
-            message: 'Produk berhasil diperbarui',
-            actions: [{ label: 'OK', type: 'primary' }]
-          });
+          // IMPORTANT: Wait longer for database to fully commit
+          console.log('[UPDATE] Waiting 800ms for backend to persist...');
+          await new Promise(resolve => setTimeout(resolve, 800));
+          
+          console.log('[UPDATE] Now reloading products from backend...');
+          const reloadSuccess = await reloadProducts(false);
+          console.log('[UPDATE] ✓ Reload result:', reloadSuccess);
+          
+          if (reloadSuccess) {
+            console.log('[UPDATE] ✓ Data refreshed successfully');
+            resetProductForm();
+            
+            // Small delay before closing form and showing success
+            await new Promise(resolve => setTimeout(resolve, 200));
+            setIsLoading(false);
+            setLoadingMessage('');
+            
+            setModal({
+              isOpen: true,
+              type: 'success',
+              title: 'Berhasil!',
+              message: 'Produk "' + newProduct.name + '" berhasil diperbarui. Halaman akan dimuat ulang...',
+              actions: [{ 
+                label: 'OK', 
+                type: 'primary',
+                onClick: () => {
+                  console.log('[UPDATE] User clicked OK, reloading page...');
+                  window.location.reload();
+                }
+              }]
+            });
+            console.log('[UPDATE] ========== END UPDATE (SUCCESS) ==========');
+          } else {
+            throw new Error('Gagal memperbarui daftar produk setelah update');
+          }
         } else {
           throw new Error(result.message || 'Update failed');
         }
       } catch (error) {
         console.error('[UPDATE] Error:', error);
+        setIsLoading(false);
+        setLoadingMessage('');
+        
         setModal({
           isOpen: true,
           type: 'error',
@@ -275,7 +363,11 @@ const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOu
       }
     } else {
       // Add new product to multiple outlets
-      console.log('[CREATE] Starting create products:', newProduct.name);
+      console.log('[CREATE] ========== START CREATE ==========');
+      console.log('[CREATE] Product name:', newProduct.name);
+      console.log('[CREATE] Selected outlets:', selectedOutletsForProduct.length);
+      setIsLoading(true);
+      setLoadingMessage('Membuat produk baru...');
       
       try {
         const newProducts = selectedOutletsForProduct.map(outletId => ({
@@ -288,35 +380,60 @@ const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOu
           status: 'active'
         }));
 
-        console.log('[CREATE] Creating', newProducts.length, 'products');
+        console.log('[CREATE] Creating', newProducts.length, 'products in parallel');
         
-        // Create all products
+        // Create all products in parallel
         const results = await Promise.all(newProducts.map(prod =>
           productAPI.create(prod)
         ));
         
-        console.log('[CREATE] All products created successfully:', results);
+        console.log('[CREATE] ✓ All', results.length, 'products created successfully');
         
-        // TUNGGU sampai reload selesai
-        console.log('[CREATE] Reloading products from backend...');
-        await reloadProducts();
-        console.log('[CREATE] Products reloaded');
+        // IMPORTANT: Wait longer for database to fully commit
+        console.log('[CREATE] Waiting 800ms for backend to persist...');
+        setLoadingMessage('Memperbarui daftar produk...');
+        await new Promise(resolve => setTimeout(resolve, 800));
         
-        const outletNames = userOutlets
-          .filter(o => selectedOutletsForProduct.includes(o.id))
-          .map(o => o.name)
-          .join(', ');
+        console.log('[CREATE] Now reloading products from backend...');
+        const reloadSuccess = await reloadProducts(false);
+        console.log('[CREATE] ✓ Reload result:', reloadSuccess);
         
-        resetProductForm();
-        setModal({
-          isOpen: true,
-          type: 'success',
-          title: 'Berhasil!',
-          message: `Produk "${newProduct.name}" berhasil ditambahkan ke: ${outletNames}`,
-          actions: [{ label: 'OK', type: 'primary' }]
-        });
+        if (reloadSuccess) {
+          const outletNames = userOutlets
+            .filter(o => selectedOutletsForProduct.includes(o.id))
+            .map(o => o.name)
+            .join(', ');
+        
+          console.log('[CREATE] ✓ Data refreshed successfully');
+          resetProductForm();
+          
+          // Small delay before closing form and showing success
+          await new Promise(resolve => setTimeout(resolve, 200));
+          setIsLoading(false);
+          setLoadingMessage('');
+          
+          setModal({
+            isOpen: true,
+            type: 'success',
+            title: 'Berhasil!',
+            message: `Produk "${newProduct.name}" berhasil ditambahkan ke: ${outletNames}. Halaman akan dimuat ulang...`,
+            actions: [{ 
+              label: 'OK', 
+              type: 'primary',
+              onClick: () => {
+                console.log('[CREATE] User clicked OK, reloading page...');
+                window.location.reload();
+              }
+            }]
+          });
+        } else {
+          throw new Error('Gagal memperbarui daftar produk setelah create');
+        }
       } catch (error) {
         console.error('[CREATE] Error:', error);
+        setIsLoading(false);
+        setLoadingMessage('');
+        
         setModal({
           isOpen: true,
           type: 'error',
@@ -357,32 +474,63 @@ const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOu
           label: 'Hapus',
           type: 'danger',
           onClick: async () => {
-            console.log('[DELETE] Starting delete for product:', id);
+            console.log('[DELETE] ========== START DELETE ==========');
+            console.log('[DELETE] Product ID:', id);
+            setIsLoading(true);
+            setLoadingMessage('Menghapus produk...');
             
             try {
-              console.log('[DELETE] Sending delete to backend for product:', id);
+              console.log('[DELETE] Sending delete request to backend');
               const result = await productAPI.delete(id);
-              console.log('[DELETE] Backend delete response:', result);
+              console.log('[DELETE] ✓ Backend response received:', result.success);
               
               if (result.success) {
-                console.log('[DELETE] Delete successful, reloading products from backend...');
+                console.log('[DELETE] ✓ Delete successful, waiting for database to commit...');
+                setLoadingMessage('Memperbarui daftar produk...');
                 
-                // TUNGGU sampai reload selesai
-                await reloadProducts();
-                console.log('[DELETE] Products reloaded');
+                // IMPORTANT: Wait longer for database to fully commit
+                console.log('[DELETE] Waiting 800ms for backend to persist...');
+                await new Promise(resolve => setTimeout(resolve, 800));
                 
-                setModal({
-                  isOpen: true,
-                  type: 'success',
-                  title: 'Berhasil!',
-                  message: 'Produk berhasil dihapus',
-                  actions: [{ label: 'OK', type: 'primary' }]
-                });
+                console.log('[DELETE] Now reloading products from backend...');
+                const reloadSuccess = await reloadProducts(false);
+                console.log('[DELETE] ✓ Reload result:', reloadSuccess);
+                
+                if (reloadSuccess) {
+                  console.log('[DELETE] ✓ Data refreshed successfully');
+                  
+                  // Small delay before closing form and showing success
+                  await new Promise(resolve => setTimeout(resolve, 200));
+                  setIsLoading(false);
+                  setLoadingMessage('');
+                  
+                  setModal({
+                    isOpen: true,
+                    type: 'success',
+                    title: 'Berhasil!',
+                    message: 'Produk berhasil dihapus. Halaman akan dimuat ulang...',
+                    actions: [{ 
+                      label: 'OK', 
+                      type: 'primary',
+                      onClick: () => {
+                        console.log('[DELETE] User clicked OK, reloading page...');
+                        window.location.reload();
+                      }
+                    }]
+                  });
+                  console.log('[DELETE] ========== END DELETE (SUCCESS) ==========');
+                } else {
+                  throw new Error('Gagal memperbarui daftar produk setelah delete');
+                }
               } else {
                 throw new Error(result.message || 'Delete failed');
               }
             } catch (error) {
-              console.error('[DELETE] Error:', error);
+              console.error('[DELETE] ❌ Error:', error);
+              setIsLoading(false);
+              setLoadingMessage('');
+              console.log('[DELETE] ========== END DELETE (ERROR) ==========');
+              
               setModal({
                 isOpen: true,
                 type: 'error',
@@ -428,6 +576,43 @@ const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOu
         onClose={() => setModal({ ...modal, isOpen: false })}
       />
 
+      {/* Loading Overlay */}
+      {isLoading && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '10px',
+            textAlign: 'center',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+          }}>
+            <div style={{
+              width: '50px',
+              height: '50px',
+              border: '4px solid #f0f0f0',
+              borderTop: '4px solid #FF6B6B',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+              margin: '0 auto 20px'
+            }} />
+            <p style={{ margin: '0', color: '#333', fontSize: '16px', fontWeight: 'bold' }}>
+              {loadingMessage || 'Loading...'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="dashboard-header">
         <div className="header-content">
@@ -435,6 +620,17 @@ const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOu
           <p>Kelola produk dan karyawan</p>
         </div>
         <div className="header-actions">
+          <button 
+            className="logout-btn" 
+            onClick={() => {
+              console.log('[MANUAL REFRESH] User clicked refresh button');
+              reloadProducts(true);
+            }}
+            style={{ marginRight: '10px', backgroundColor: '#4ECDC4' }}
+            title="Refresh data dari server"
+          >
+            🔄 Refresh
+          </button>
           <button className="logout-btn" onClick={() => setLogoutModal(true)}>Keluar</button>
         </div>
       </div>
@@ -444,39 +640,42 @@ const AdminDashboard = ({ onLogout, currentOutlet, products, setProducts, userOu
         <div className="outlet-selector" style={{ marginBottom: '20px', padding: '0 20px' }}>
           {userOutlets.length > 1 ? (
             // Multiple outlets: Show button selector
-            <div style={{ 
-              backgroundColor: '#f8f9fa', 
-              padding: '15px 20px', 
-              borderRadius: '8px',
-              border: '2px solid #FF6B6B',
-              borderLeft: '5px solid #FF6B6B'
-            }}>
-              <label style={{ fontWeight: 'bold', marginBottom: '10px', display: 'block', color: '#333', fontSize: '14px' }}>
-                📍 Pilih Outlet Untuk Dikelola:
-              </label>
-              <div className="outlet-buttons" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                {userOutlets.map(outlet => (
-                  <button
-                    key={outlet.id}
-                    className={`outlet-btn ${currentOutletId === outlet.id ? 'active' : ''}`}
-                    onClick={() => handleChangeOutlet(outlet.id)}
-                    style={{
-                      padding: '10px 16px',
-                      borderRadius: '6px',
-                      border: currentOutletId === outlet.id ? '2px solid #FF6B6B' : '2px solid #ddd',
-                      backgroundColor: currentOutletId === outlet.id ? '#FFE0E0' : '#fff',
-                      color: currentOutletId === outlet.id ? '#FF6B6B' : '#666',
-                      fontWeight: currentOutletId === outlet.id ? 'bold' : 'normal',
-                      cursor: 'pointer',
-                      transition: 'all 0.3s ease',
-                      fontSize: '13px'
-                    }}
-                  >
-                    {outlet.name} {currentOutletId === outlet.id && '✓'}
-                  </button>
-                ))}
+            <>
+              {console.log('[AdminDashboard] Rendering outlet buttons for', userOutlets.length, 'outlets')}
+              <div style={{ 
+                backgroundColor: '#f8f9fa', 
+                padding: '15px 20px', 
+                borderRadius: '8px',
+                border: '2px solid #FF6B6B',
+                borderLeft: '5px solid #FF6B6B'
+              }}>
+                <label style={{ fontWeight: 'bold', marginBottom: '10px', display: 'block', color: '#333', fontSize: '14px' }}>
+                  📍 Pilih Outlet Untuk Dikelola:
+                </label>
+                <div className="outlet-buttons" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                  {userOutlets.map(outlet => (
+                    <button
+                      key={outlet.id}
+                      className={`outlet-btn ${currentOutletId === outlet.id ? 'active' : ''}`}
+                      onClick={() => handleChangeOutlet(outlet.id)}
+                      style={{
+                        padding: '10px 16px',
+                        borderRadius: '6px',
+                        border: currentOutletId === outlet.id ? '2px solid #FF6B6B' : '2px solid #ddd',
+                        backgroundColor: currentOutletId === outlet.id ? '#FFE0E0' : '#fff',
+                        color: currentOutletId === outlet.id ? '#FF6B6B' : '#666',
+                        fontWeight: currentOutletId === outlet.id ? 'bold' : 'normal',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        fontSize: '13px'
+                      }}
+                    >
+                      {outlet.name} {currentOutletId === outlet.id && '✓'}
+                    </button>
+                  ))}
               </div>
-            </div>
+              </div>
+            </>
           ) : (
             // Single outlet: Show info box
             <div style={{ 

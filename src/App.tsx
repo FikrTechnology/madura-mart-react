@@ -183,35 +183,50 @@ const App: FC = () => {
 
   /**
    * Refresh products dari backend - called setelah CRUD operations
+   * Fetch ALL products from ALL outlets, tidak hanya current outlet
    */
   const refreshProductsFromBackend = async () => {
     try {
-      console.log('[App] Refreshing products from backend...');
+      console.log('[App] ====== START REFRESH PRODUCTS ======');
       // Dynamic import untuk avoid circular dependency
       const { productAPI } = await import('./services/api');
       
-      const result = await productAPI.getAll({ limit: 100 });
-      console.log('[App] Refresh response:', result);
+      // PENTING: Fetch products tanpa filter outlet untuk mendapat semua data
+      console.log('[App] Fetching ALL products (no outlet filter), limit: 1000');
+      const result = await productAPI.getAll({ limit: 1000 });
+      console.log('[App] API Response:', { success: result.success, dataType: typeof result.data, itemCount: Array.isArray(result.data) ? result.data.length : Object.keys(result.data || {}).length });
       
       if (result.success && result.data) {
-        console.log('[App] Got products from backend:', result.data.length, 'items');
-        const productsArray = Array.isArray(result.data) ? result.data : Object.values(result.data);
+        console.log('[App] Got response with data');
+        let productsArray = Array.isArray(result.data) ? result.data : Object.values(result.data || {});
+        console.log('[App] Products count after conversion:', productsArray.length, 'items');
         
         // Normalize products to ensure outlet_id field
-        const normalized = productsArray.map((p: any) => ({
-          ...p,
-          outlet_id: p.outlet_id || p.outletId,
-        }));
+        const normalized = productsArray.map((p: any) => {
+          return {
+            ...p,
+            outlet_id: p.outlet_id || p.outletId,
+          };
+        });
         
-        console.log('[App] Setting products state with', normalized.length, 'items');
+        console.log('[App] After normalization:', normalized.length, 'products');
+        if (normalized.length > 0) {
+          console.log('[App] First product:', normalized[0]);
+        }
+        
         setProducts(normalized as Product[]);
         localStorage.setItem('madura_products', JSON.stringify(normalized));
-        console.log('[App] Products state updated successfully');
+        console.log('[App] ✅ Products state updated successfully with', normalized.length, 'items');
+        console.log('[App] ====== END REFRESH PRODUCTS (SUCCESS) ======');
         return true;
+      } else {
+        console.error('[App] API returned success=false:', result.message);
+        console.log('[App] ====== END REFRESH PRODUCTS (FAILED) ======');
+        return false;
       }
-      return false;
     } catch (error) {
-      console.error('[App] Error refreshing products:', error);
+      console.error('[App] ❌ Error refreshing products:', error);
+      console.log('[App] ====== END REFRESH PRODUCTS (ERROR) ======');
       return false;
     }
   };

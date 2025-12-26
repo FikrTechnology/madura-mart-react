@@ -23,6 +23,8 @@ export interface User {
   status: 'active' | 'inactive' | 'suspended';
   phone?: string;
   profile_image?: string;
+  outlet_ids?: string[];
+  outletIds?: string[];
   created_at: string;
   updated_at: string;
 }
